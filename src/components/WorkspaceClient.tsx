@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Editor } from "./Editor";
 import { Console } from "./Console";
 import { TutorChat } from "./TutorChat";
+import { TestRunner } from "./TestRunner";
+import { CompletionScreen } from "./CompletionScreen";
 import { useI18n } from "@/lib/i18n";
 import { PythonRunner } from "@/lib/runners/PythonRunner";
 import type { RunResult, TestCase } from "@/lib/runners/LanguageRunner";
+import { evaluateMilestones } from "@/lib/exercise/milestoneCheck";
 
 const DEFAULT_CODE = `# Exemple - affiche la somme de deux nombres
 a = int(input("a: "))
@@ -16,6 +20,7 @@ print(a + b)
 
 export function WorkspaceClient() {
   const { t } = useI18n();
+  const router = useRouter();
   const [code, setCode] = useState(DEFAULT_CODE);
   const [stdinInput, setStdinInput] = useState("2\n3");
   const [fontSize, setFontSize] = useState(14);
@@ -27,7 +32,7 @@ export function WorkspaceClient() {
   const [errorHint, setErrorHint] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"exercise" | "editor" | "tutor">("editor");
   const [largePasteNotice, setLargePasteNotice] = useState<string | null>(null);
-  const [loadedExercise, setLoadedExercise] = useState<null | { title: string; statement: string; ioSpec: string; constraints: string[]; examples: Array<{ input: string; output: string }>; concepts: string[]; visibleTests?: TestCase[]; hiddenTests?: TestCase[]; milestones?: Array<{ title: string }> }>(null);
+  const [loadedExercise, setLoadedExercise] = useState<null | { id: string; title: string; statement: string; ioSpec: string; constraints: string[]; examples: Array<{ input: string; output: string }>; concepts: string[]; difficulty: number; visibleTests?: TestCase[]; hiddenTests?: TestCase[]; milestones?: Array<{ id: string; exerciseId: string; order: number; title: string; successCriteria: string; hintSeeds: string[] }> }>(null);
 
   const runner = useMemo(() => new PythonRunner(), []);
 
@@ -35,7 +40,7 @@ export function WorkspaceClient() {
     try {
       const raw = localStorage.getItem("currentExercise");
       if (raw) {
-        const parsed = JSON.parse(raw) as { title: string; statement: string; ioSpec: string; constraints: string[]; examples: Array<{ input: string; output: string }>; concepts: string[] };
+        const parsed = JSON.parse(raw) as typeof loadedExercise;
         // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate from localStorage once
         setLoadedExercise(parsed);
       }
@@ -118,6 +123,17 @@ export function WorkspaceClient() {
 
   const [testReport, setTestReport] = useState<null | Awaited<ReturnType<PythonRunner["runTests"]>>>(null);
 
+  const milestoneStatuses = useMemo(() => {
+    if (!loadedExercise?.milestones?.length) return null;
+    return evaluateMilestones(
+      loadedExercise.milestones as unknown as import("@/lib/exercise/types").Milestone[],
+      code,
+      testReport as unknown as import("@/lib/runners/LanguageRunner").TestReport | null
+    );
+  }, [loadedExercise, code, testReport]);
+
+  const isCompleted = !!(testReport && testReport.total > 0 && testReport.passed === testReport.total);
+
   async function handleRunTests() {
     setRunning(true);
     const report = await runner.runTests(code, demoTests);
@@ -158,15 +174,32 @@ export function WorkspaceClient() {
           </div>
           <div className="rounded-2xl border border-black/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
             <h3 className="text-sm font-semibold">{t("workspace.steps") ?? "Etapes"}</h3>
-            <ul className="mt-3 space-y-2 text-sm">
-              {(loadedExercise?.milestones?.length ? loadedExercise.milestones.map((m) => m.title) : ["Lire les entrees", "Convertir en entiers", "Calculer la somme", "Afficher le resultat"]).map((title, i) => (
-                <li key={title} className="flex items-center gap-2 rounded-lg border border-black/5 px-3 py-2 dark:border-white/10">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-900 text-xs text-white dark:bg-white dark:text-zinc-900">{i + 1}</span>
-                  <span className="text-zinc-700 dark:text-zinc-300">{title}</span>
-                </li>
-              ))}
-            </ul>
-            {loadedExercise?.milestones?.length ? <p className="mt-2 text-xs text-zinc-500">{loadedExercise.milestones.length} étapes générées (3-7) — titres seulement, critères internes</p> : null}
+            {milestoneStatuses ? (
+              <ul className="mt-3 space-y-2 text-sm" data-testid="milestone-list">
+                {milestoneStatuses.map(({ milestone, completed }) => (
+                  <li key={milestone.id} data-testid={`milestone-${milestone.id}`} className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${completed ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950" : "border-black/5 dark:border-white/10"}`}>
+                    <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs ${completed ? "bg-emerald-600 text-white" : "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"}`}>{completed ? "✓" : milestone.order}</span>
+                    <span className={`${completed ? "text-emerald-800 dark:text-emerald-200" : "text-zinc-700 dark:text-zinc-300"}`}>{milestone.title}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <ul className="mt-3 space-y-2 text-sm">
+                {["Lire les entrees", "Convertir en entiers", "Calculer la somme", "Afficher le resultat"].map((title, i) => (
+                  <li key={title} className="flex items-center gap-2 rounded-lg border border-black/5 px-3 py-2 dark:border-white/10">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-900 text-xs text-white dark:bg-white dark:text-zinc-900">{i + 1}</span>
+                    <span className="text-zinc-700 dark:text-zinc-300">{title}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {milestoneStatuses ? (
+              <p className="mt-2 text-xs text-zinc-500">
+                {milestoneStatuses.filter((s) => s.completed).length}/{milestoneStatuses.length} étapes validées · Suivant : {milestoneStatuses.find((s) => !s.completed)?.milestone.title ?? "toutes validées !"}
+              </p>
+            ) : loadedExercise?.milestones?.length ? (
+              <p className="mt-2 text-xs text-zinc-500">{loadedExercise.milestones.length} étapes générées (3-7) — titres seulement, critères internes</p>
+            ) : null}
           </div>
         </div>
 
@@ -239,19 +272,23 @@ export function WorkspaceClient() {
             </div>
           ) : null}
 
+          {isCompleted && loadedExercise ? (
+            <CompletionScreen
+              exercise={{
+                title: loadedExercise.title,
+                concepts: loadedExercise.concepts as unknown as import("@/lib/exercise/types").Concept[],
+                difficulty: loadedExercise.difficulty as 1 | 2 | 3 | 4 | 5,
+                milestones: (loadedExercise.milestones ?? []) as unknown as import("@/lib/exercise/types").Milestone[],
+              }}
+              onRetry={() => setTestReport(null)}
+              onContinue={() => {
+                localStorage.removeItem("currentExercise");
+                router.push("/");
+              }}
+            />
+          ) : null}
           {testReport ? (
-            <div className="rounded-xl border border-black/10 bg-white p-3 dark:border-white/10 dark:bg-zinc-900">
-              <h4 className="text-sm font-semibold">Tests - {testReport.passed}/{testReport.total} passes</h4>
-              <ul className="mt-2 space-y-1 text-sm">
-                {testReport.results.map((r) => (
-                  <li key={r.testId} className={`flex items-center justify-between rounded px-2 py-1 ${r.passed ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"}`}>
-                    <span className="font-mono text-xs">{r.testId}{r.testId.startsWith("hidden") ? " (hidden)" : ""}</span>
-                    <span>{r.passed ? "pass" : "fail"}{!r.passed && r.message ? `: ${r.message.slice(0, 80)}` : ""}</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-2 text-xs text-zinc-500">Hidden tests never reveal input/expected beyond category - shown as hidden marker.</p>
-            </div>
+            <TestRunner tests={demoTests as unknown as import("@/lib/exercise/types").TestCase[]} report={testReport as unknown as import("@/lib/runners/LanguageRunner").TestReport} running={running} />
           ) : null}
         </div>
 
