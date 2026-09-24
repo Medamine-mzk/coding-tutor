@@ -275,6 +275,7 @@ export function WorkspaceClient() {
             lastRunResult={status}
             testReport={testReport as unknown as { passed: number; failed: number; total: number; results: Array<{ testId: string; passed: boolean; message?: string }> } | null}
             currentMilestoneTitle={loadedExercise?.milestones?.[0]?.title}
+            tests={demoTests as unknown as Array<{ id: string; input?: string; stdin?: string[]; expected: string; kind: "stdout" | "call"; fnCall?: string; hidden: boolean; category?: string }>}
           />
         </div>
       </div>

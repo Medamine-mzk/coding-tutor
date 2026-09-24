@@ -1,8 +1,5 @@
 import type { TestCase } from "./types";
-import { spawn } from "node:child_process";
-import { writeFile, unlink } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { runPythonWithStdin } from "./runPython";
 
 export type ValidateResult = {
   kept: TestCase[];
@@ -10,49 +7,7 @@ export type ValidateResult = {
 };
 
 function isPythonAvailable(): boolean {
-  // Assume python is available as `python` per earlier check
   return true;
-}
-
-async function runPythonWithStdin(code: string, stdin: string[], timeoutMs: number): Promise<{ stdout: string; stderr: string; exitCode: number; timedOut: boolean }> {
-  const tmpFile = join(tmpdir(), `ref_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.py`);
-  try {
-    await writeFile(tmpFile, code, "utf-8");
-
-    return await new Promise((resolve) => {
-      const inputStr = stdin.join("\n");
-      const child = spawn("python", [tmpFile], { stdio: ["pipe", "pipe", "pipe"] });
-
-      let stdout = "";
-      let stderr = "";
-      let timedOut = false;
-
-      const timer = setTimeout(() => {
-        timedOut = true;
-        try { child.kill("SIGKILL"); } catch {}
-        resolve({ stdout, stderr: stderr + "\nTimed out", exitCode: 124, timedOut: true });
-      }, timeoutMs);
-
-      child.stdout.on("data", (d) => { stdout += d.toString(); });
-      child.stderr.on("data", (d) => { stderr += d.toString(); });
-      child.on("error", (err) => {
-        clearTimeout(timer);
-        resolve({ stdout, stderr: err.message, exitCode: 1, timedOut: false });
-      });
-      child.on("close", (code) => {
-        clearTimeout(timer);
-        if (timedOut) return;
-        resolve({ stdout, stderr, exitCode: code ?? 0, timedOut: false });
-      });
-
-      if (inputStr) {
-        child.stdin.write(inputStr);
-      }
-      child.stdin.end();
-    });
-  } finally {
-    try { await unlink(tmpFile); } catch {}
-  }
 }
 
 export async function validateTestsWithReference(

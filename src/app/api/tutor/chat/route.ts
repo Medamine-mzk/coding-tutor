@@ -2,6 +2,9 @@ import { NextRequest } from "next/server";
 import { buildSystemPrompt, buildUserMessage, cannedFallback } from "@/lib/tutor/prompt";
 import { allowedLevelForRequest, clampHintLevel, isHintRequestOffTopic } from "@/lib/tutor/hintLadder";
 import type { ChatRequest, HintLevel, TutorContext } from "@/lib/tutor/types";
+import { checkForLeak, logBlockedLeak } from "@/lib/tutor/antiLeak";
+import type { TestCase } from "@/lib/exercise/types";
+import { generateHeuristicReference } from "@/lib/exercise/reference";
 
 const RATE = new Map<string, { count: number; resetAt: number }>();
 const RATE_MAX = 15;
@@ -124,96 +127,116 @@ export async function POST(req: NextRequest) {
     locale,
   };
 
-  const system = buildSystemPrompt(allowed, locale);
+  const systemBase = buildSystemPrompt(allowed, locale);
   const userMessage = buildUserMessage(ctx, studentMessage || (quickAction ? `Quick action: ${quickAction}` : undefined), quickAction);
+
+  // Prepare anti-leak context: tests and reference (server-only)
+  const tests: TestCase[] = ((body.tests as TestCase[] | undefined) ?? []) as TestCase[];
+  let referenceCode: string | undefined;
+  try {
+    // Build a minimal Exercise for heuristic reference generation (server-only)
+    const refExercise = {
+      id: exercise.id,
+      language: "python" as const,
+      uiLocale: locale,
+      title: exercise.title,
+      statement: exercise.statement,
+      ioSpec: exercise.ioSpec,
+      constraints: exercise.constraints,
+      examples: exercise.examples,
+      difficulty: 2 as const,
+      concepts: exercise.concepts as unknown as import("@/lib/exercise/types").Concept[],
+      source: "typed" as const,
+      milestones: [],
+      visibleTests: [],
+      hiddenTests: [],
+    } as unknown as import("@/lib/exercise/types").Exercise;
+    referenceCode = generateHeuristicReference(refExercise) ?? undefined;
+  } catch {}
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   const model = process.env.TUTOR_MODEL ?? "claude-sonnet-4-20250514";
 
-  if (!apiKey) {
-    const text = cannedFallback(allowed, locale, ctx, "no_key");
-    return new Response(chunkResponse(text, allowed), {
-      headers: { "content-type": "text/event-stream", "x-hint-level": String(allowed) },
-    });
-  }
-
-  // Try Anthropic streaming
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 25000);
-
-    const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "content-type": "application/json",
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 400,
-        stream: true,
-        system,
-        messages: [{ role: "user", content: userMessage }],
-      }),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeout);
-
-    if (!anthropicRes.ok || !anthropicRes.body) {
-      const text = cannedFallback(allowed, locale, ctx, "error");
-      return new Response(chunkResponse(text, allowed), {
-        headers: { "content-type": "text/event-stream", "x-hint-level": String(allowed) },
-      });
+  async function generateOnce(attempt: number, strictNote?: string): Promise<string> {
+    const system = strictNote ? `${systemBase}\n\n${strictNote}` : systemBase;
+    if (!apiKey) {
+      // Fallback canned: for attempt 0 use normal, for regenerate add strict
+      return cannedFallback(allowed, locale, ctx, attempt === 0 ? "no_key" : "error");
     }
-
-    // Proxy Anthropic SSE to our own SSE format {delta, done, hintLevelUsed}
-    const upstream = anthropicRes.body;
-    const transform = new TransformStream<Uint8Array, Uint8Array>({
-      async transform(chunk, controller) {
-        const txt = new TextDecoder().decode(chunk);
-        // Anthropic streams lines like `data: {"type":"content_block_delta", "delta":{"text":"..."}}`
-        for (const line of txt.split("\n")) {
-          const trimmed = line.trim();
-          if (!trimmed.startsWith("data:")) continue;
-          const jsonStr = trimmed.slice(5).trim();
-          if (!jsonStr) continue;
-          try {
-            const evt = JSON.parse(jsonStr) as { type?: string; delta?: { text?: string }; text?: string };
-            let delta = "";
-            if (evt.type === "content_block_delta" && evt.delta?.text) delta = evt.delta.text;
-            else if (typeof evt.text === "string") delta = evt.text;
-            else if (typeof (evt as unknown as { delta?: string }).delta === "string") delta = (evt as unknown as { delta: string }).delta;
-            if (delta) {
-              const out = `data: ${JSON.stringify({ delta, done: false })}\n\n`;
-              controller.enqueue(new TextEncoder().encode(out));
-            }
-          } catch {
-            // ignore parse errors for non-JSON lines
-          }
-        }
-      },
-      flush(controller) {
-        const out = `data: ${JSON.stringify({ delta: "", done: true, hintLevelUsed: allowed })}\n\n`;
-        controller.enqueue(new TextEncoder().encode(out));
-      },
-    });
-
-    return new Response(upstream.pipeThrough(transform), {
-      headers: {
-        "content-type": "text/event-stream",
-        "cache-control": "no-cache",
-        connection: "keep-alive",
-        "x-hint-level": String(allowed),
-      },
-    });
-  } catch {
-    const text = cannedFallback(allowed, locale, ctx, "offline");
-    return new Response(chunkResponse(text, allowed), {
-      headers: { "content-type": "text/event-stream", "x-hint-level": String(allowed) },
-    });
+    // Try Anthropic non-streaming for filterability
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+          "content-type": "application/json",
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 400,
+          // non-streaming so we can filter before sending
+          system,
+          messages: [{ role: "user", content: userMessage }],
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (!res.ok) return cannedFallback(allowed, locale, ctx, "error");
+      const data = (await res.json()) as { content: Array<{ type: string; text: string }> };
+      const textPart = data.content?.find((c) => c.type === "text")?.text ?? "";
+      return textPart.trim() || cannedFallback(allowed, locale, ctx, "error");
+    } catch {
+      return cannedFallback(allowed, locale, ctx, "offline");
+    }
   }
+
+  // Defense in depth: generate, check for leak, regenerate up to 2 times with stricter instruction, else canned fallback
+  let finalText: string | null = null;
+  let blockedReason: string | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const strictNote =
+      attempt === 0
+        ? undefined
+        : attempt === 1
+          ? "STRICT: Your previous response was blocked for containing too much code or a full solution. Provide ONLY a short hint. At levels <5, NEVER include a code block longer than 6 lines. At any level, never provide code that together with the student's code would pass all tests."
+          : "STRICT FINAL: Provide only a Socratic question, no code block at all. Max 2 sentences.";
+    const candidate = await generateOnce(attempt, strictNote);
+    const check = await checkForLeak(candidate, {
+      hintLevel: allowed,
+      studentCode: code,
+      tests,
+      referenceCode,
+    });
+    if (!check.isLeak) {
+      finalText = candidate;
+      break;
+    }
+    blockedReason = check.reason ?? "unknown";
+    logBlockedLeak({ reason: blockedReason, hintLevel: allowed, snippet: (check.offendingBlock ?? candidate).slice(0, 400) });
+    if (attempt === 2) {
+      // Fallback to safe canned hint after 2 regenerations
+      finalText = cannedFallback(allowed, locale, ctx, "error");
+      break;
+    }
+    // otherwise loop to regenerate with stricter instruction
+  }
+
+  const safeText = finalText ?? cannedFallback(allowed, locale, ctx, "error");
+  // Ensure safeText itself is not a leak (canned is safe by design, but double-check)
+  const finalCheck = await checkForLeak(safeText, { hintLevel: allowed, studentCode: code, tests, referenceCode });
+  const textToStream = finalCheck.isLeak ? cannedFallback(allowed, locale, ctx, "error") : safeText;
+
+  return new Response(chunkResponse(textToStream, allowed), {
+    headers: {
+      "content-type": "text/event-stream",
+      "cache-control": "no-cache",
+      "x-hint-level": String(allowed),
+      ...(blockedReason ? { "x-blocked-reason": blockedReason } : {}),
+    },
+  });
 }
 
 export async function GET() {

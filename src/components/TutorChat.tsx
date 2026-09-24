@@ -10,6 +10,7 @@ type Props = {
   lastRunResult?: { stdout?: string; stderr?: string; exitCode?: number; timedOut?: boolean } | null;
   testReport?: { passed: number; failed: number; total: number; results: Array<{ testId: string; passed: boolean; message?: string }> } | null;
   currentMilestoneTitle?: string;
+  tests?: Array<{ id: string; input?: string; stdin?: string[]; expected: string; kind: "stdout" | "call"; fnCall?: string; hidden: boolean; category?: string }>;
 };
 
 const QUICK_ACTIONS = [
@@ -19,7 +20,7 @@ const QUICK_ACTIONS = [
   { key: "hint" as const, fr: "Donne un indice", ar: "أعطني تلميحا", en: "Give me a hint" },
 ];
 
-export function TutorChat({ exercise, code, lastRunResult, testReport, currentMilestoneTitle }: Props) {
+export function TutorChat({ exercise, code, lastRunResult, testReport, currentMilestoneTitle, tests }: Props) {
   const { locale, t } = useI18n();
   const [messages, setMessages] = useState<TutorMessage[]>(() => [
     {
@@ -91,6 +92,7 @@ export function TutorChat({ exercise, code, lastRunResult, testReport, currentMi
       requestedHintLevel: opts.requestedLevel,
       codeChangedSinceLastHint: codeChanged,
       hasRunSinceLastHint: hasRun,
+      tests,
     };
 
     try {

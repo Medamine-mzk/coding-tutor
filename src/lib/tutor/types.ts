@@ -81,6 +81,8 @@ export type ChatRequest = {
   requestedHintLevel?: HintLevel;
   codeChangedSinceLastHint?: boolean;
   hasRunSinceLastHint?: boolean;
+  // For anti-leak would-pass check
+  tests?: Array<{ id: string; input?: string; stdin?: string[]; expected: string; kind: "stdout" | "call"; fnCall?: string; hidden: boolean; category?: string }>;
 };
 
 export type ChatResponseChunk = {
