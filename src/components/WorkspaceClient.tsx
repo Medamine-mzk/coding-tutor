@@ -26,7 +26,7 @@ export function WorkspaceClient() {
   const [errorHint, setErrorHint] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"exercise" | "editor" | "tutor">("editor");
   const [largePasteNotice, setLargePasteNotice] = useState<string | null>(null);
-  const [loadedExercise, setLoadedExercise] = useState<null | { title: string; statement: string; ioSpec: string; constraints: string[]; examples: Array<{ input: string; output: string }>; concepts: string[] }>(null);
+  const [loadedExercise, setLoadedExercise] = useState<null | { title: string; statement: string; ioSpec: string; constraints: string[]; examples: Array<{ input: string; output: string }>; concepts: string[]; visibleTests?: TestCase[]; hiddenTests?: TestCase[]; milestones?: Array<{ title: string }> }>(null);
 
   const runner = useMemo(() => new PythonRunner(), []);
 
@@ -103,10 +103,17 @@ export function WorkspaceClient() {
     setTimeout(() => setLargePasteNotice(null), 6000);
   }
 
-  const demoTests: TestCase[] = useMemo(() => [
-    { id: "visible-1", expected: "5", kind: "stdout", stdin: ["2", "3"], hidden: false },
-    { id: "hidden-empty", expected: "0", kind: "stdout", stdin: ["0", "0"], hidden: true, category: "edge case with zero" },
-  ], []);
+  const demoTests: TestCase[] = useMemo(() => {
+    if (loadedExercise && (loadedExercise as unknown as { visibleTests?: TestCase[] }).visibleTests) {
+      const ex = loadedExercise as unknown as { visibleTests: TestCase[]; hiddenTests: TestCase[] };
+      const combined = [...(ex.visibleTests ?? []), ...(ex.hiddenTests ?? [])];
+      if (combined.length > 0) return combined as unknown as TestCase[];
+    }
+    return [
+      { id: "visible-1", expected: "5", kind: "stdout", stdin: ["2", "3"], hidden: false },
+      { id: "hidden-empty", expected: "0", kind: "stdout", stdin: ["0", "0"], hidden: true, category: "edge case with zero" },
+    ];
+  }, [loadedExercise]);
 
   const [testReport, setTestReport] = useState<null | Awaited<ReturnType<PythonRunner["runTests"]>>>(null);
 
@@ -151,13 +158,14 @@ export function WorkspaceClient() {
           <div className="rounded-2xl border border-black/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
             <h3 className="text-sm font-semibold">{t("workspace.steps") ?? "Etapes"}</h3>
             <ul className="mt-3 space-y-2 text-sm">
-              {["Lire les entrees", "Convertir en entiers", "Calculer la somme", "Afficher le resultat"].map((title, i) => (
+              {(loadedExercise?.milestones?.length ? loadedExercise.milestones.map((m) => m.title) : ["Lire les entrees", "Convertir en entiers", "Calculer la somme", "Afficher le resultat"]).map((title, i) => (
                 <li key={title} className="flex items-center gap-2 rounded-lg border border-black/5 px-3 py-2 dark:border-white/10">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-900 text-xs text-white dark:bg-white dark:text-zinc-900">{i + 1}</span>
                   <span className="text-zinc-700 dark:text-zinc-300">{title}</span>
                 </li>
               ))}
             </ul>
+            {loadedExercise?.milestones?.length ? <p className="mt-2 text-xs text-zinc-500">{loadedExercise.milestones.length} étapes générées (3-7) — titres seulement, critères internes</p> : null}
           </div>
         </div>
 

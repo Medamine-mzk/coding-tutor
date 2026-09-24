@@ -52,7 +52,13 @@ export type Exercise = {
   source: ExerciseSource;
   milestones: Milestone[];
   visibleTests: TestCase[];
+  hiddenTests: TestCase[];
   hiddenTestsRef?: string;
+};
+
+export type ReferenceSolution = {
+  exerciseId: string;
+  code: string; // server-only, never sent to browser
 };
 
 export type ParseRequest = {

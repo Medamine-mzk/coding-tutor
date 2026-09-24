@@ -22,6 +22,7 @@ function makeExercise(overrides: Partial<Exercise> = {}): Exercise {
       { id: "ms2", exerciseId: "ex_test", order: 2, title: "Calculer", successCriteria: "ok", hintSeeds: [] },
     ],
     visibleTests: [{ id: "t1", expected: "5", kind: "stdout", hidden: false }],
+    hiddenTests: [],
     ...overrides,
   };
 }

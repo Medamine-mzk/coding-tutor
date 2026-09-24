@@ -153,7 +153,9 @@ export function ExerciseConfirm({ exercise: initial, onConfirm, onCancel }: Prop
 
         <div className="rounded-xl bg-zinc-50 p-3 text-xs leading-5 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
           <strong>Milestones {ex.milestones.length}</strong> · {ex.milestones.map((m)=>m.title).join(" → ")} <br />
-          <strong>Visible tests {ex.visibleTests.length}</strong> · {ex.visibleTests.map((t)=>`${t.id}:${t.expected}`).join(", ") || "—"}
+          <strong>Visible tests {ex.visibleTests.length}</strong> · {ex.visibleTests.map((t)=>`${t.id}:${t.expected}`).join(", ") || "—"} <br />
+          <strong>Hidden tests {ex.hiddenTests?.length ?? 0}</strong> · {ex.hiddenTests?.map((t)=>`${t.id} (${t.category ?? "hidden"})`).join(", ") || "—"} <br />
+          <span className="text-zinc-500">Les tests cachés ne révèlent jamais l&apos;entrée/sortie au-delà de la catégorie — only category visible.</span>
           <br />Source: {ex.source} · id {ex.id}
         </div>
       </div>

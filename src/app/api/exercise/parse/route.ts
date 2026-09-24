@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isExerciseLike, detectLanguage, sanitizeForLLM } from "@/lib/exercise/parser";
 import { parseExerciseWithLLM } from "@/lib/exercise/llm";
+import { generateReferenceSolutionLLM } from "@/lib/exercise/reference";
+import { validateTestsWithReference } from "@/lib/exercise/validate";
 
 // Simple in-memory rate limit per IP (MVP, resets on restart)
 const RATE_LIMIT = new Map<string, { count: number; resetAt: number }>();
@@ -74,6 +76,30 @@ export async function POST(req: NextRequest) {
       text: trimmed,
       source: (source as "typed" | "upload" | "library") ?? "typed",
     });
+
+    // Ticket 04: validate tests against server-side reference solution. Reference never reaches the browser.
+    try {
+      const reference = await generateReferenceSolutionLLM(exercise);
+      if (reference) {
+        const allTests = [...exercise.visibleTests, ...exercise.hiddenTests];
+        const { kept, discarded } = await validateTestsWithReference(allTests, reference, { timeoutMs: 2000 });
+        if (discarded.length > 0) {
+          console.warn(`[parse] discarded ${discarded.length} tests that reference failed/mismatched:`, discarded.map((d) => `${d.test.id}:${d.reason}`).join("; "));
+        }
+        // Keep only tests that passed validation, preserving visible/hidden split
+        const keptIds = new Set(kept.map((t) => t.id));
+        exercise.visibleTests = exercise.visibleTests.filter((t) => keptIds.has(t.id));
+        exercise.hiddenTests = exercise.hiddenTests.filter((t) => keptIds.has(t.id));
+        // Fallback: if all visible were discarded, keep originals (don't block student)
+        if (exercise.visibleTests.length === 0 && allTests.length > 0) {
+          exercise.visibleTests = allTests.filter((t) => !t.hidden).slice(0, 2);
+          exercise.hiddenTests = allTests.filter((t) => t.hidden).slice(0, 2);
+        }
+      }
+    } catch (valErr) {
+      console.warn("[parse] validation skipped:", valErr instanceof Error ? valErr.message : String(valErr));
+    }
+
     return NextResponse.json({ isExercise: true, exercise }, { status: 200 });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);

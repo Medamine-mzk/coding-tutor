@@ -1,4 +1,6 @@
-import type { Concept, Exercise, ExerciseExample, Locale, TestCase } from "./types";
+import type { Concept, Exercise, ExerciseExample, Locale } from "./types";
+import { generateMilestones } from "./milestones";
+import { visibleTestsFromExamples, generateHiddenTests } from "./tests";
 
 function nanoid(): string {
   return Math.random().toString(36).slice(2, 9);
@@ -199,21 +201,27 @@ export function buildExerciseFromHeuristics(
   const difficulty = inferDifficulty(concepts, rawText);
 
   const id = `ex_${nanoid()}`;
-  const milestones: Exercise["milestones"] = [
-    { id: `ms_${nanoid()}`, exerciseId: id, order: 1, title: lang === "ar" ? "قراءة المدخلات" : lang === "en" ? "Read the input" : "Lire les entrées", successCriteria: "Student reads input correctly", hintSeeds: ["Check input()", "input() returns string"] },
-    { id: `ms_${nanoid()}`, exerciseId: id, order: 2, title: lang === "ar" ? "معالجة الحالة الحدّية" : lang === "en" ? "Handle the edge case" : "Gérer le cas limite", successCriteria: "Edge case handled", hintSeeds: ["What if list is empty?"] },
-    { id: `ms_${nanoid()}`, exerciseId: id, order: 3, title: lang === "ar" ? "تنفيذ المنطق" : lang === "en" ? "Implement core logic" : "Implémenter la logique principale", successCriteria: "Core logic correct", hintSeeds: ["Think about loops", "Accumulator pattern"] },
-    { id: `ms_${nanoid()}`, exerciseId: id, order: 4, title: lang === "ar" ? "إظهار النتيجة" : lang === "en" ? "Display the result" : "Afficher le résultat", successCriteria: "Correct output", hintSeeds: ["print(result)"] },
-  ].slice(0, concepts.includes("recursion") ? 4 : 3);
 
-  const visibleTests: TestCase[] = examples.slice(0, 2).map((ex, i) => ({
-    id: `t_vis_${i + 1}`,
-    input: ex.input,
-    stdin: ex.input.split(/[ \n]+/).filter(Boolean),
-    expected: ex.output,
-    kind: "stdout" as const,
-    hidden: false,
-  }));
+  const shell: Exercise = {
+    id,
+    language: "python",
+    uiLocale: lang,
+    title,
+    statement: rawText.trim(),
+    ioSpec,
+    constraints,
+    examples,
+    difficulty,
+    concepts,
+    source,
+    milestones: [],
+    visibleTests: [],
+    hiddenTests: [],
+  };
+
+  const milestones = generateMilestones(shell);
+  const visibleTests = visibleTestsFromExamples(shell);
+  const hiddenTests = generateHiddenTests(shell);
 
   return {
     id,
@@ -229,6 +237,7 @@ export function buildExerciseFromHeuristics(
     source,
     milestones,
     visibleTests,
-    hiddenTestsRef: undefined,
+    hiddenTests,
+    hiddenTestsRef: hiddenTests.length ? `ref_${id}` : undefined,
   };
 }
