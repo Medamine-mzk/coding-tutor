@@ -10,7 +10,9 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:budget": "node scripts/check-budget.mjs",
+    "build:budget": "next build && node scripts/check-budget.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

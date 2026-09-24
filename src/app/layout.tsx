@@ -4,6 +4,8 @@ import "./globals.css";
 import { I18nProvider } from "@/lib/i18n";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+import { OfflineBanner } from "@/components/OfflineBanner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,6 +39,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="fr" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col bg-white dark:bg-zinc-950">
         <I18nProvider>
+          <ServiceWorkerRegister />
+          <OfflineBanner />
           <Header />
           <main className="flex flex-1 flex-col">{children}</main>
           <Footer />
