@@ -19,6 +19,49 @@ export function generateHiddenTests(exercise: Exercise): TestCase[] {
   const hidden: TestCase[] = [];
   const stmt = exercise.statement.toLowerCase();
 
+  // Auth-specific hidden tests (login / password)
+  if (stmt.includes("login") && stmt.includes("admin")) {
+    hidden.push(
+      {
+        id: `t_hid_${nanoid()}`,
+        input: "admin\nadmin",
+        stdin: ["admin", "admin"],
+        expected: "Bienvenue",
+        kind: "stdout",
+        hidden: true,
+        category: "correct credentials",
+      },
+      {
+        id: `t_hid_${nanoid()}`,
+        input: "user\npass",
+        stdin: ["user", "pass"],
+        expected: "incorrecte",
+        kind: "stdout",
+        hidden: true,
+        category: "wrong credentials",
+      },
+      {
+        id: `t_hid_${nanoid()}`,
+        input: "ADMIN\nADMIN",
+        stdin: ["ADMIN", "ADMIN"],
+        expected: "incorrecte",
+        kind: "stdout",
+        hidden: true,
+        category: "case sensitivity",
+      },
+      {
+        id: `t_hid_${nanoid()}`,
+        input: "\n\n",
+        stdin: ["", ""],
+        expected: "incorrecte",
+        kind: "stdout",
+        hidden: true,
+        category: "empty input",
+      }
+    );
+    return hidden.slice(0, 4);
+  }
+
   // Vitesse-specific hidden tests (km/min -> m/s with conversion)
   if (stmt.includes("vitesse")) {
     hidden.push(

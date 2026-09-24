@@ -3,9 +3,22 @@ import type { Exercise } from "./types";
 export function generateSkeleton(exercise: Exercise): string {
   const stmt = exercise.statement.toLowerCase();
   const isVitesse = stmt.includes("vitesse") && (stmt.includes("distance") || stmt.includes("kilom"));
+  const isAuth = (stmt.includes("login") || stmt.includes("mot de passe")) && stmt.includes("admin");
+
+  if (isAuth) {
+    return `# ${exercise.title}
+login = input("login : ")
+mdp = input("mot de passe : ")
+
+# TODO: tester si login == "admin" et mdp == "admin"
+# if login == "admin" and mdp == "admin":
+#     print("Bienvenue")
+# else:
+#     print("incorrecte")
+`;
+  }
 
   if (isVitesse) {
-    // Minimal skeleton for vitesse — prompts, conversion, division by zero guard
     return `# ${exercise.title}
 # ${exercise.statement.slice(0, 80)}
 distance_km = float(input("distance (km) : "))

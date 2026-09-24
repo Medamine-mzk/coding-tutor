@@ -41,6 +41,24 @@ const BASE_MILESTONES: MilestoneDef[] = [
     when: (ex) => ex.statement.toLowerCase().includes("vitesse") && ex.statement.toLowerCase().includes("temps"),
   },
   {
+    title: { fr: "Lire login et mot de passe", ar: "قراءة اسم المستخدم وكلمة المرور", en: "Read login and password" },
+    successCriteria: "Both strings read via input()",
+    hintSeeds: ["login = input()", "motdepasse = input()"],
+    when: (ex) => ex.statement.toLowerCase().includes("login") && ex.statement.toLowerCase().includes("mot de passe"),
+  },
+  {
+    title: { fr: "Vérifier l'égalité", ar: "التحقق من التساوي", en: "Check equality" },
+    successCriteria: "Condition login==admin and password==admin",
+    hintSeeds: ["if login == \"admin\" and mdp == \"admin\":", "Attention aux guillemets"],
+    when: (ex) => ex.statement.toLowerCase().includes("login") && ex.statement.toLowerCase().includes("admin"),
+  },
+  {
+    title: { fr: "Afficher le message", ar: "عرض الرسالة", en: "Display message" },
+    successCriteria: "Print Bienvenue or incorrecte",
+    hintSeeds: ["print(\"Bienvenue\") vs print(\"incorrecte\")"],
+    when: (ex) => ex.statement.toLowerCase().includes("login") && ex.statement.toLowerCase().includes("bienvenue"),
+  },
+  {
     title: { fr: "Initialiser l'accumulateur", ar: "تهيئة المجمّع", en: "Initialize the accumulator" },
     successCriteria: "Variable for result/sum/count initialized correctly",
     hintSeeds: ["Think about starting value for sum vs product", "Where should count start?"],

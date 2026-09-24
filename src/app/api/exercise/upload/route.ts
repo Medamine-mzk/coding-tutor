@@ -110,11 +110,11 @@ export async function POST(req: NextRequest) {
 
   // Multi-exercise detection
   const parts = splitMultipleExercises(textForParse);
+  const hasLLMUpload = !!process.env.GROQ_API_KEY || !!process.env.ANTHROPIC_API_KEY;
   if (parts.length > 1) {
-    // Parse each part as separate exercise
     const exercises: Exercise[] = [];
     for (const part of parts) {
-      if (!isExerciseLike(part)) continue;
+      if (!isExerciseLike(part) && !hasLLMUpload) continue;
       try {
         const ex = await parseExerciseWithLLM({ text: part, source: "upload" });
         // Validate tests server-side like in /parse
@@ -147,8 +147,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ isExercise: true, multiple: true, exercises, count: exercises.length, detectedType }, { status: 200, headers: rateHeaders });
   }
 
-  // Single exercise path — reuse same logic as /parse but with upload source
-  if (!isExerciseLike(textForParse)) {
+  // Single exercise path — if no LLM and not exercise-like, clarify
+  const hasLLMSingle = !!process.env.GROQ_API_KEY || !!process.env.ANTHROPIC_API_KEY;
+  if (!isExerciseLike(textForParse) && !hasLLMSingle) {
     const lang = detectLanguage(textForParse);
     const clarification =
       lang === "ar"

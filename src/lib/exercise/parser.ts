@@ -20,10 +20,15 @@ function isVitesseExercise(text: string): boolean {
   return low.includes("vitesse") && (low.includes("distance") || low.includes("kilom")) && (low.includes("temps") || low.includes("minute"));
 }
 
+function isAuthExercise(text: string): boolean {
+  const low = text.toLowerCase();
+  return (low.includes("login") || low.includes("mot de passe") || low.includes("mot de passe")) && low.includes("admin");
+}
+
 export function isExerciseLike(text: string): boolean {
   const trimmed = text.trim();
   if (trimmed.length < 20) return false;
-  if (isVitesseExercise(trimmed)) return true;
+  if (isVitesseExercise(trimmed) || isAuthExercise(trimmed)) return true;
   const signals = [
     /entr(é|e)e/i,
     /sortie/i,
@@ -33,10 +38,22 @@ export function isExerciseLike(text: string): boolean {
     /example/i,
     /مثال/i,
     /écrire/i,
+    /ecrire/i,
     /afficher/i,
+    /affiche/i,
     /print/i,
     /lire/i,
+    /saisir/i,
     /read/i,
+    /demande/i,
+    /chaine/i,
+    /login/i,
+    /mot de passe/i,
+    /tester/i,
+    /\bsi\b/i,
+    /égale/i,
+    /admin/i,
+    /bienvenue/i,
     /fonction/i,
     /function/i,
     /boucle/i,
@@ -50,12 +67,18 @@ export function isExerciseLike(text: string): boolean {
   const hits = signals.filter((re) => re.test(trimmed)).length;
   if (hits >= 1) return true;
   if (trimmed.includes("→") || trimmed.includes("->") || trimmed.toLowerCase().includes("entree")) return true;
-  const verbs = /\b(calculer|calcul|somme|trouver|afficher|écrire|retourner|return|compute|find|sum|vitesse|distance|temps)\b/i;
+  const verbs = /\b(calculer|calcul|somme|trouver|afficher|affiche|écrire|ecrire|saisir|tester|si|égale|admin|bienvenue|retourner|return|compute|find|sum|vitesse|distance|temps|login|chaine)\b/i;
   if (verbs.test(trimmed) && trimmed.length > 40) return true;
   return false;
 }
 
 export function extractTitle(text: string): string {
+  if (isAuthExercise(text)) {
+    const lang = detectLanguage(text);
+    if (lang === "ar") return "المصادقة — تسجيل الدخول";
+    if (lang === "en") return "Authentication — login";
+    return "Authentification login / mot de passe";
+  }
   if (isVitesseExercise(text)) {
     const lang = detectLanguage(text);
     if (lang === "ar") return "حساب السرعة (المسافة/الزمن)";
@@ -78,6 +101,12 @@ export function extractTitle(text: string): string {
 }
 
 export function extractIOSpec(text: string): string {
+  if (isAuthExercise(text)) {
+    const lang = detectLanguage(text);
+    if (lang === "ar") return "الإدخال: login ثم mot de passe (سطرين). الإخراج: رسالة ترحيب أو خطأ.";
+    if (lang === "en") return "Input: login on one line, password on next. Output: welcome or error message.";
+    return "Entrée : login sur une ligne, mot de passe sur la suivante. Sortie : Bienvenue ou message d'erreur.";
+  }
   if (isVitesseExercise(text)) {
     const lang = detectLanguage(text);
     if (lang === "ar") return "الإدخال: المسافة (كم) في سطر، الزمن (دقائق) في سطر. الإخراج: السرعة (م/ث).";
@@ -154,8 +183,9 @@ export function extractExamples(text: string): ExerciseExample[] {
   }
 
   if (examples.length === 0) {
-    if (isVitesseExercise(text)) {
-      // For vitesse: distance km, time min -> speed m/s. Example: 1 km, 1 min => 16.67 m/s
+    if (isAuthExercise(text)) {
+      examples.push({ input: "admin\nadmin", output: "Bienvenue" }, { input: "user\npass", output: "incorrecte" });
+    } else if (isVitesseExercise(text)) {
       examples.push({ input: "1\n1", output: "16.67" }, { input: "10\n5", output: "33.33" });
     } else if (/somme|sum|addition|a\s*\+\s*b/i.test(text)) {
       examples.push({ input: "2 3", output: "5" }, { input: "0 0", output: "0" });
@@ -168,6 +198,7 @@ export function extractExamples(text: string): ExerciseExample[] {
 }
 
 export function extractConcepts(text: string): Concept[] {
+  if (isAuthExercise(text)) return ["conditionals", "strings"] as Concept[];
   if (isVitesseExercise(text)) return ["math"] as Concept[];
   const low = text.toLowerCase();
   const concepts: Concept[] = [];

@@ -22,6 +22,17 @@ export function generateHeuristicReference(exercise: Exercise): string | null {
 `;
   }
 
+  // Auth login / password
+  if ((stmt.includes("login") || stmt.includes("mot de passe")) && stmt.includes("admin")) {
+    return `login = input().strip()
+mdp = input().strip()
+if login == "admin" and mdp == "admin":
+    print("Bienvenue")
+else:
+    print("incorrecte")
+`;
+  }
+
   // Vitesse = distance / temps with unit conversion (km->m, min->s)
   if (stmt.includes("vitesse") && (stmt.includes("distance") || stmt.includes("kilom")) && (stmt.includes("temps") || stmt.includes("minute"))) {
     return `distance_km = float(input().strip() or 0)
@@ -32,7 +43,6 @@ else:
     distance_m = distance_km * 1000
     temps_s = temps_min * 60
     vitesse = distance_m / temps_s
-    # Format: if integer, print as int, else 2 decimals
     if vitesse.is_integer():
         print(int(vitesse))
     else:

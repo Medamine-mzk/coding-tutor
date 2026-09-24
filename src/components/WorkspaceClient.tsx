@@ -43,11 +43,13 @@ export function WorkspaceClient() {
       const raw = localStorage.getItem("currentExercise");
       if (raw) {
         const parsed = JSON.parse(raw) as typeof loadedExercise & { statement?: string; title?: string };
-        // Fix for ex_h308z92 and similar vitesse exercises that were parsed with generic fallback (title New exercise)
+        // Fix for ex_h308z92 (vitesse) and login exercises that were parsed with generic fallback
         const stmt = parsed?.statement ?? "";
+        const lowStmt = stmt.toLowerCase();
         const isGenericTitle = parsed?.title === "New exercise" || parsed?.title === "Nouvel exercice" || parsed?.title === "Exercice sans titre" || parsed?.title === "New exercise";
-        const isVitesse = stmt.toLowerCase().includes("vitesse") && stmt.toLowerCase().includes("distance");
-        if (isGenericTitle && isVitesse) {
+        const isVitesse = lowStmt.includes("vitesse") && lowStmt.includes("distance");
+        const isAuth = (lowStmt.includes("login") || lowStmt.includes("mot de passe")) && lowStmt.includes("admin");
+        if (isGenericTitle && (isVitesse || isAuth)) {
           const rebuilt = buildExerciseFromHeuristics(stmt, "typed", (parsed as unknown as { uiLocale?: string })?.uiLocale as never);
           rebuilt.id = parsed?.id ?? rebuilt.id;
           // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate and fix corrupted exercise

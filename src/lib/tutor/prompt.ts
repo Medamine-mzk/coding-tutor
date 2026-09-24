@@ -79,10 +79,11 @@ export function cannedFallback(
     return "Trop de requêtes. Réessaie dans une minute.";
   }
 
-  const isVitesse = ctx.exercise.statement.toLowerCase().includes("vitesse");
+  const stmtLow = ctx.exercise.statement.toLowerCase();
+  const isVitesse = stmtLow.includes("vitesse");
+  const isAuth = (stmtLow.includes("login") || stmtLow.includes("mot de passe")) && stmtLow.includes("admin");
   const lvl = allowedLevel;
 
-  // Contextual: syntax errors — pinpoint line and kind, don't rewrite
   if (ctx.lastRunResult?.stderr) {
     const errFull = ctx.lastRunResult.stderr;
     const firstLine = errFull.split("\n").find((l) => l.includes("SyntaxError") || l.includes("NameError") || l.includes("EOFError") || l.trim().startsWith("File")) ?? errFull.split("\n")[0];
@@ -124,7 +125,18 @@ export function cannedFallback(
     return `La sortie ne correspond pas à ${failed?.testId ?? "un test"}. Qu'est-ce qui manque ou est en trop dans ta sortie actuelle ?`;
   }
 
-  // Contextual hints per exercise family
+  if (isAuth) {
+    const authHints: Record<HintLevel, Record<string, string>> = {
+      0: { fr: "Peux-tu reformuler : deux chaînes login/mdp → Bienvenue si admin/admin sinon incorrecte ?", ar: "أعد صياغة: سلسلتان → ترحيب إذا admin/admin وإلا خطأ؟", en: "Can you restate: two strings → Welcome if admin/admin else incorrect?" },
+      1: { fr: "Que doit-on lire en premier : login ou mot de passe ? Avec quelle fonction ?", ar: "ماذا نقرأ أولا؟ بأي دالة؟", en: "What to read first? With which function?" },
+      2: { fr: "Pense à input() pour lire chaque chaîne, sans oublier les guillemets pour \"admin\".", ar: "فكر في input() لكل سلسلة مع علامات اقتباس لـ admin.", en: "Think input() for each string, with quotes for \"admin\"." },
+      3: { fr: "Vérifie la condition : if login == \"admin\" and mdp == \"admin\": — as-tu bien mis and et les guillemets ?", ar: "تحقق من الشرط and وعلامات الاقتباس.", en: "Check: if login == \"admin\" and password == \"admin\":" },
+      4: { fr: "Micro-exemple différent : si x==\"a\" and y==\"b\": print(\"ok\") else: print(\"non\") — adapte à admin.", ar: "مثال صغير مشابه: تحقق من سلسلتين ثم اطبع.", en: "Tiny analogue: if x==\"a\" and y==\"b\": print(\"ok\") else: print(\"no\") — adapt." },
+      5: { fr: "# Squelette auth\nlogin = input(\"login : \")\nmdp = input(\"mot de passe : \")\n# TODO: tester égalité admin\n# if login == \"admin\" and mdp == \"admin\":\n#     print(\"Bienvenue\")\n# else:\n#     print(\"incorrecte\")", ar: "# هيكل المصادقة\nlogin = input()\nmdp = input()\n# TODO: التحقق", en: "# Auth skeleton\nlogin = input(\"login: \")\npassword = input(\"password: \")\n# TODO: check admin" },
+    };
+    return authHints[lvl][locale] ?? authHints[lvl].fr;
+  }
+
   if (isVitesse) {
     const vitesseHints: Record<HintLevel, Record<string, string>> = {
       0: { fr: "Peux-tu reformuler : distance en km, temps en minutes → vitesse en m/s ?", ar: "أعد صياغة: مسافة بالكم، زمن بالدقائق → سرعة بالم/ث؟", en: "Can you restate: distance km, time minutes → speed m/s?" },

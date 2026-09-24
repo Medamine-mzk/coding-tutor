@@ -50,8 +50,9 @@ export async function POST(req: NextRequest) {
   // Treat raw as untrusted — sanitize length already. Do not evaluate any instructions inside text.
   void sanitizeForLLM(trimmed);
 
-  // Fast path: if clearly not an exercise, return clarification without LLM
-  if (!isExerciseLike(trimmed)) {
+  // Fast path: if clearly not an exercise and no LLM, return clarification without calling LLM
+  const hasLLM = !!process.env.GROQ_API_KEY || !!process.env.ANTHROPIC_API_KEY;
+  if (!isExerciseLike(trimmed) && !hasLLM) {
     const lang = detectLanguage(trimmed);
     const clarification =
       lang === "ar"
