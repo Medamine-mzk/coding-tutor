@@ -1,0 +1,268 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { Editor } from "./Editor";
+import { Console } from "./Console";
+import { useI18n } from "@/lib/i18n";
+import { PythonRunner } from "@/lib/runners/PythonRunner";
+import type { RunResult, TestCase } from "@/lib/runners/LanguageRunner";
+
+const DEFAULT_CODE = `# Exemple - affiche la somme de deux nombres
+a = int(input("a: "))
+b = int(input("b: "))
+print(a + b)
+`;
+
+export function WorkspaceClient() {
+  const { t } = useI18n();
+  const [code, setCode] = useState(DEFAULT_CODE);
+  const [stdinInput, setStdinInput] = useState("2\n3");
+  const [fontSize, setFontSize] = useState(14);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [status, setStatus] = useState<RunResult | null>(null);
+  const [running, setRunning] = useState(false);
+  const [awaitingInput, setAwaitingInput] = useState(false);
+  const [stdinQueue, setStdinQueue] = useState<string[]>([]);
+  const [errorHint, setErrorHint] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"exercise" | "editor" | "tutor">("editor");
+  const [largePasteNotice, setLargePasteNotice] = useState<string | null>(null);
+
+  const runner = useMemo(() => new PythonRunner(), []);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const update = () => setTheme(document.documentElement.classList.contains("dark") ? "dark" : (media.matches ? "dark" : "light"));
+    update();
+    const obs = new MutationObserver(update);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    media.addEventListener("change", update);
+    return () => { obs.disconnect(); media.removeEventListener("change", update); };
+  }, []);
+
+  useEffect(() => {
+    if (stdinInput === "") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- derive queue from input
+      setStdinQueue([]);
+      return;
+    }
+    const raw = stdinInput.split("\n");
+    let q = raw;
+    if (stdinInput.endsWith("\n") && q[q.length - 1] === "") q = q.slice(0, -1);
+    setStdinQueue(q);
+  }, [stdinInput]);
+
+  async function handleRun() {
+    setRunning(true);
+    setStatus(null);
+    setErrorHint(null);
+    setAwaitingInput(false);
+    try {
+      const result = await runner.run(code, { stdin: stdinQueue, timeoutMs: 5000 });
+      setStatus(result);
+      if (result.timedOut) {
+        setErrorHint("Programme interrompu : boucle infinie ou calcul trop long (timeout 5s).");
+      } else if (result.stderr) {
+        if (result.stderr.includes("SyntaxError")) setErrorHint("Erreur de syntaxe : verifie les deux-points, parentheses et l&apos;indentation.");
+        else if (result.stderr.includes("NameError")) setErrorHint("NameError : une variable ou fonction est utilisee avant d&apos;etre definie.");
+        else if (result.stderr.includes("EOFError")) {
+          setErrorHint("Le programme attend une entree (input) mais aucune n&apos;a ete fournie. Ajoute une ligne dans la zone stdin.");
+          setAwaitingInput(true);
+        } else if (result.stderr.includes("Import") && result.stderr.includes("not allowed")) {
+          setErrorHint("Import non autorise. Seules les bibliotheques math, random, statistics, etc. sont permises.");
+        }
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setStatus({ stdout: "", stderr: msg, exitCode: 1, timedOut: msg.includes("timed out"), error: msg });
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  function handleStop() {
+    runner.stop();
+    setRunning(false);
+    setStatus((prev) => prev ? { ...prev, stderr: (prev.stderr ? prev.stderr + "\n" : "") + "Arrete par l&apos;utilisateur.", error: "stopped", timedOut: true } : { stdout: "", stderr: "Arrete par l&apos;utilisateur.", exitCode: 124, timedOut: true, error: "stopped" });
+  }
+
+  function handleLargePaste(text: string) {
+    const lines = text.split("\n").length;
+    setLargePasteNotice(`Collage volumineux detecte (${lines} lignes, ${text.length} caracteres). Peux-tu m&apos;expliquer ce code ? - Walk me through this part.`);
+    setTimeout(() => setLargePasteNotice(null), 6000);
+  }
+
+  const demoTests: TestCase[] = useMemo(() => [
+    { id: "visible-1", expected: "5", kind: "stdout", stdin: ["2", "3"], hidden: false },
+    { id: "hidden-empty", expected: "0", kind: "stdout", stdin: ["0", "0"], hidden: true, category: "edge case with zero" },
+  ], []);
+
+  const [testReport, setTestReport] = useState<null | Awaited<ReturnType<PythonRunner["runTests"]>>>(null);
+
+  async function handleRunTests() {
+    setRunning(true);
+    const report = await runner.runTests(code, demoTests);
+    setTestReport(report);
+    setRunning(false);
+  }
+
+  return (
+    <div className="flex flex-1 flex-col">
+      <div className="flex border-b border-black/10 bg-white dark:border-white/10 dark:bg-zinc-950 lg:hidden">
+        {([
+          ["exercise", t("workspace.exercise")],
+          ["editor", t("workspace.editor") + " / " + t("workspace.console")],
+          ["tutor", t("workspace.tutor")],
+        ] as const).map(([key, label]) => (
+          <button key={key} onClick={() => setActiveTab(key)} className={`flex-1 px-3 py-3 text-sm font-medium ${activeTab === key ? "border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white" : "text-zinc-500"}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-1 flex-col gap-4 p-4 lg:grid lg:grid-cols-[300px_1fr_340px] lg:gap-4 lg:p-4">
+        <div className={`${activeTab !== "exercise" ? "hidden lg:flex" : "flex"} flex-col gap-4`}>
+          <div className="rounded-2xl border border-black/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
+            <h2 className="font-semibold">{t("workspace.exercise")}</h2>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Exemple : lire deux entiers et afficher leur somme.</p>
+            <div className="mt-3 rounded-xl bg-zinc-50 p-3 text-sm dark:bg-zinc-800">
+              <p className="font-medium">Enonce</p>
+              <p className="mt-1 leading-6">Lire deux entiers sur deux lignes et afficher leur somme sur une ligne.</p>
+              <p className="mt-2 font-medium">Exemple</p>
+              <pre className="mt-1 rounded bg-white p-2 font-mono text-xs dark:bg-zinc-900">Entree: 2 3 -&gt; Sortie: 5</pre>
+              <p className="mt-2 text-xs text-zinc-500">Contraintes : -1000 &le; a,b &le; 1000</p>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-black/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
+            <h3 className="text-sm font-semibold">{t("workspace.steps") ?? "Etapes"}</h3>
+            <ul className="mt-3 space-y-2 text-sm">
+              {["Lire les entrees", "Convertir en entiers", "Calculer la somme", "Afficher le resultat"].map((title, i) => (
+                <li key={title} className="flex items-center gap-2 rounded-lg border border-black/5 px-3 py-2 dark:border-white/10">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-900 text-xs text-white dark:bg-white dark:text-zinc-900">{i + 1}</span>
+                  <span className="text-zinc-700 dark:text-zinc-300">{title}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        <div className={`${activeTab !== "editor" ? "hidden lg:flex" : "flex"} flex flex-col gap-3`}>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-black/10 bg-white p-3 dark:border-white/10 dark:bg-zinc-900">
+            <div className="flex items-center gap-2">
+              <button onClick={handleRun} disabled={running} data-testid="run-btn" className="inline-flex h-9 items-center gap-2 rounded-full bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:disabled:bg-zinc-700">
+                <span aria-hidden>▶</span> {t("workspace.run")}
+              </button>
+              <button onClick={handleStop} disabled={!running} data-testid="stop-btn" className="inline-flex h-9 items-center gap-2 rounded-full border border-black/10 bg-white px-4 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50 dark:border-white/15 dark:bg-zinc-800 dark:hover:bg-zinc-700">
+                ■ {t("workspace.stop")}
+              </button>
+              <button onClick={handleRunTests} disabled={running} className="hidden h-9 items-center rounded-full border border-black/10 bg-white px-4 text-sm sm:inline-flex dark:border-white/15 dark:bg-zinc-800">
+                Tests
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-zinc-600 dark:text-zinc-400">Font</label>
+              <button onClick={() => setFontSize((s) => Math.max(10, s - 1))} className="h-8 w-8 rounded-full border border-black/10 dark:border-white/15">-</button>
+              <span className="w-8 text-center text-sm">{fontSize}</span>
+              <button onClick={() => setFontSize((s) => Math.min(24, s + 1))} className="h-8 w-8 rounded-full border border-black/10 dark:border-white/15">+</button>
+            </div>
+          </div>
+
+          {largePasteNotice ? (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200" data-testid="paste-notice">
+              {largePasteNotice}
+            </div>
+          ) : null}
+
+          <div className="min-h-[320px] flex-1">
+            <Editor value={code} onChange={setCode} onLargePaste={handleLargePaste} theme={theme} fontSize={fontSize} placeholder={t("landing.pastePlaceholder")} />
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-[220px_1fr]">
+            <div className="rounded-xl border border-black/10 bg-white p-3 dark:border-white/10 dark:bg-zinc-900">
+              <label htmlFor="stdin" className="text-xs font-medium text-zinc-700 dark:text-zinc-300">stdin (une valeur par ligne pour input())</label>
+              <textarea
+                id="stdin"
+                value={stdinInput}
+                onChange={(e) => setStdinInput(e.target.value)}
+                rows={4}
+                placeholder={"2\n3"}
+                className="mt-2 w-full rounded-lg border border-black/10 bg-zinc-50 p-2 font-mono text-sm dark:border-white/10 dark:bg-zinc-800"
+                data-testid="stdin-input"
+              />
+              <p className="mt-1 text-xs text-zinc-500">Exemple : 2 lignes pour deux appels a input()</p>
+            </div>
+            <Console
+              stdout={status?.stdout ?? ""}
+              stderr={status?.stderr ?? ""}
+              awaitingInput={awaitingInput}
+              inputPrompt="input()"
+              onSubmitInput={(val) => {
+                setStdinInput((prev) => (prev ? prev + "\n" + val : val));
+                setAwaitingInput(false);
+                setErrorHint(null);
+              }}
+            />
+          </div>
+
+          {errorHint ? (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200" role="status">
+              {errorHint}
+            </div>
+          ) : null}
+          {status && !status.timedOut && !status.stderr && status.stdout ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
+              Sortie : <span className="font-mono">{status.stdout.trimEnd().split("\n").pop()}</span> - pret pour les tests
+            </div>
+          ) : null}
+
+          {testReport ? (
+            <div className="rounded-xl border border-black/10 bg-white p-3 dark:border-white/10 dark:bg-zinc-900">
+              <h4 className="text-sm font-semibold">Tests - {testReport.passed}/{testReport.total} passes</h4>
+              <ul className="mt-2 space-y-1 text-sm">
+                {testReport.results.map((r) => (
+                  <li key={r.testId} className={`flex items-center justify-between rounded px-2 py-1 ${r.passed ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"}`}>
+                    <span className="font-mono text-xs">{r.testId}{r.testId.startsWith("hidden") ? " (hidden)" : ""}</span>
+                    <span>{r.passed ? "pass" : "fail"}{!r.passed && r.message ? `: ${r.message.slice(0, 80)}` : ""}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs text-zinc-500">Hidden tests never reveal input/expected beyond category - shown as hidden marker.</p>
+            </div>
+          ) : null}
+        </div>
+
+        <div className={`${activeTab !== "tutor" ? "hidden lg:flex" : "flex"} flex-col gap-4`}>
+          <div className="flex flex-1 flex-col rounded-2xl border border-black/10 bg-white dark:border-white/10 dark:bg-zinc-900">
+            <div className="border-b border-black/10 p-3 dark:border-white/10">
+              <h2 className="font-semibold">{t("workspace.tutor")}</h2>
+              <p className="text-xs text-zinc-500">Socratique d&apos;abord - jamais la solution</p>
+            </div>
+            <div className="flex flex-1 flex-col gap-3 p-3">
+              <div className="rounded-xl bg-zinc-50 p-3 text-sm leading-6 dark:bg-zinc-800">
+                <p>Que fait ton programme si l&apos;entree est vide ? Essaie avec stdin vide.</p>
+                <p className="mt-2 text-xs text-zinc-500">Niveau d&apos;indice actuel : 1 - Question guidee</p>
+              </div>
+              <div className="rounded-xl border border-black/10 p-3 text-sm dark:border-white/10">
+                <p className="text-zinc-600 dark:text-zinc-400">Le tuteur complet arrive en Ticket 05. Ici tu peux deja executer et voir les erreurs expliquees au-dessus de la console.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 border-t border-black/10 p-3 dark:border-white/10">
+              {[
+                t("workspace.stuck"),
+                t("workspace.explainError"),
+                t("workspace.checkApproach"),
+                t("workspace.hint"),
+              ].map((label) => (
+                <button key={label} className="rounded-full border border-black/10 bg-white px-3 py-2 text-xs font-medium hover:bg-zinc-50 dark:border-white/15 dark:bg-zinc-800">
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3 text-xs leading-5 text-zinc-600 dark:border-white/10 dark:bg-zinc-800 dark:text-zinc-400">
+            Offline : l&apos;editeur et l&apos;execution fonctionnent sans reseau une fois Pyodide mis en cache. Le tuteur necessite le reseau.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
