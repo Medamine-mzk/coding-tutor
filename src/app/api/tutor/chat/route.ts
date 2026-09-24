@@ -147,38 +147,100 @@ export async function POST(req: NextRequest) {
     referenceCode = generateHeuristicReference(refExercise) ?? undefined;
   } catch {}
 
+  const geminiKey = process.env.GEMINI_API_KEY;
   const groqKey = process.env.GROQ_API_KEY;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const hasGemini = !!geminiKey;
   const hasGroq = !!groqKey;
   const hasAnthropic = !!anthropicKey;
+  const geminiModel = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
   const groqModel = process.env.GROQ_MODEL ?? process.env.TUTOR_MODEL ?? "llama-3.1-8b-instant";
   const anthropicModel = process.env.TUTOR_MODEL ?? "claude-sonnet-4-20250514";
 
+  async function callGeminiChat(system: string, user: string): Promise<string> {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`;
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    let fullUrl = url;
+    if (geminiKey!.startsWith("AQ.")) headers["Authorization"] = `Bearer ${geminiKey}`;
+    else {
+      headers["x-goog-api-key"] = geminiKey!;
+      fullUrl = `${url}?key=${encodeURIComponent(geminiKey!)}`;
+    }
+    const res = await fetch(fullUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: `${system}\n\n${user}` }] }],
+        systemInstruction: { parts: [{ text: system }] },
+        generationConfig: { temperature: 0.3, maxOutputTokens: 400 },
+      }),
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw new Error(`Gemini ${res.status}: ${txt.slice(0, 300)}`);
+    }
+    const data = (await res.json()) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+    return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  }
+
   async function generateOnce(attempt: number, strictNote?: string): Promise<string> {
     const system = strictNote ? `${systemBase}\n\n${strictNote}` : systemBase;
-    if (!hasGroq && !hasAnthropic) {
+    if (!hasGemini && !hasGroq && !hasAnthropic) {
       return cannedFallback(allowed, locale, ctx, attempt === 0 ? "no_key" : "error");
     }
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 15000);
       let textPart = "";
+      if (hasGemini) {
+        try {
+          textPart = await callGeminiChat(system, userMessage);
+          clearTimeout(timeout);
+          if (textPart) return textPart.trim() || cannedFallback(allowed, locale, ctx, "error");
+        } catch (e) {
+          console.warn("[tutor] Gemini failed, falling back:", e instanceof Error ? e.message : String(e));
+          clearTimeout(timeout);
+        }
+        // Fall through to Groq/Anthropic if Gemini failed
+        if (hasGroq) {
+          const ctrl2 = new AbortController();
+          const t2 = setTimeout(() => ctrl2.abort(), 15000);
+          const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${groqKey}`, "content-type": "application/json" },
+            body: JSON.stringify({ model: groqModel, temperature: 0.3, max_tokens: 400, messages: [{ role: "system", content: system }, { role: "user", content: userMessage }] }),
+            signal: ctrl2.signal,
+          });
+          clearTimeout(t2);
+          if (res.ok) {
+            const data = (await res.json()) as { choices: Array<{ message: { content: string } }> };
+            textPart = data.choices?.[0]?.message?.content ?? "";
+            if (textPart) return textPart.trim();
+          }
+        }
+        if (hasAnthropic) {
+          const ctrl3 = new AbortController();
+          const t3 = setTimeout(() => ctrl3.abort(), 15000);
+          const res = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: { "x-api-key": anthropicKey!, "content-type": "application/json", "anthropic-version": "2023-06-01" },
+            body: JSON.stringify({ model: anthropicModel, max_tokens: 400, system, messages: [{ role: "user", content: userMessage }] }),
+            signal: ctrl3.signal,
+          });
+          clearTimeout(t3);
+          if (res.ok) {
+            const data = (await res.json()) as { content: Array<{ type: string; text: string }> };
+            textPart = data.content?.find((c) => c.type === "text")?.text ?? "";
+            if (textPart) return textPart.trim();
+          }
+        }
+        return cannedFallback(allowed, locale, ctx, "error");
+      }
       if (hasGroq) {
         const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${groqKey}`,
-            "content-type": "application/json",
-          },
-          body: JSON.stringify({
-            model: groqModel,
-            temperature: 0.3,
-            max_tokens: 400,
-            messages: [
-              { role: "system", content: system },
-              { role: "user", content: userMessage },
-            ],
-          }),
+          headers: { Authorization: `Bearer ${groqKey}`, "content-type": "application/json" },
+          body: JSON.stringify({ model: groqModel, temperature: 0.3, max_tokens: 400, messages: [{ role: "system", content: system }, { role: "user", content: userMessage }] }),
           signal: controller.signal,
         });
         clearTimeout(timeout);
@@ -188,17 +250,8 @@ export async function POST(req: NextRequest) {
       } else {
         const res = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
-          headers: {
-            "x-api-key": anthropicKey!,
-            "content-type": "application/json",
-            "anthropic-version": "2023-06-01",
-          },
-          body: JSON.stringify({
-            model: anthropicModel,
-            max_tokens: 400,
-            system,
-            messages: [{ role: "user", content: userMessage }],
-          }),
+          headers: { "x-api-key": anthropicKey!, "content-type": "application/json", "anthropic-version": "2023-06-01" },
+          body: JSON.stringify({ model: anthropicModel, max_tokens: 400, system, messages: [{ role: "user", content: userMessage }] }),
           signal: controller.signal,
         });
         clearTimeout(timeout);

@@ -6,13 +6,49 @@ type LLMOptions = {
   source?: "typed" | "upload" | "library";
 };
 
+async function callGemini(system: string, user: string, maxTokens = 2000): Promise<string> {
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (!geminiKey) throw new Error("No Gemini key");
+  const model = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const body = {
+    contents: [{ role: "user", parts: [{ text: `${system}\n\n${user}` }] }],
+    systemInstruction: { parts: [{ text: system }] },
+    generationConfig: { temperature: 0.2, maxOutputTokens: maxTokens },
+  };
+  // Try with x-goog-api-key header first, then Authorization Bearer, then ?key=
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  let fullUrl = url;
+  if (geminiKey.startsWith("AQ.")) {
+    headers["Authorization"] = `Bearer ${geminiKey}`;
+  } else if (geminiKey.startsWith("AIza")) {
+    headers["x-goog-api-key"] = geminiKey;
+    fullUrl = `${url}?key=${encodeURIComponent(geminiKey)}`;
+  } else {
+    headers["x-goog-api-key"] = geminiKey;
+  }
+  const res = await fetch(fullUrl, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Gemini ${res.status}: ${txt.slice(0, 500)}`);
+  }
+  const data = (await res.json()) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+}
+
 export async function parseExerciseWithLLM(opts: LLMOptions): Promise<Exercise> {
+  const geminiKey = process.env.GEMINI_API_KEY;
   const groqKey = process.env.GROQ_API_KEY;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const hasGemini = !!geminiKey;
   const hasGroq = !!groqKey;
   const hasAnthropic = !!anthropicKey;
 
-  if (!hasGroq && !hasAnthropic) {
+  if (!hasGemini && !hasGroq && !hasAnthropic) {
     return buildExerciseFromHeuristics(opts.text, opts.source);
   }
 
@@ -30,7 +66,27 @@ export async function parseExerciseWithLLM(opts: LLMOptions): Promise<Exercise> 
   try {
     let jsonStr = "";
 
-    if (hasGroq) {
+    // Prefer Gemini 2.0 Flash (best JSON) then Groq then Anthropic
+    if (hasGemini) {
+      try {
+        jsonStr = await callGemini(systemPrompt, userPrompt, 2000);
+      } catch (e) {
+        console.warn("[parse] Gemini failed, falling back:", e instanceof Error ? e.message : String(e));
+        if (hasGroq) {
+          // fall through to Groq below
+        } else if (hasAnthropic) {
+          // fall through to Anthropic below
+        } else throw e;
+      }
+      // If Gemini returned empty, try next provider
+      if (!jsonStr && hasGroq) {
+        // continue to Groq
+      } else if (jsonStr) {
+        // we have a result from Gemini, skip other providers
+        // jsonStr already set
+      }
+    }
+    if (!jsonStr && hasGroq) {
       const groqModel = process.env.GROQ_MODEL ?? process.env.TUTOR_MODEL ?? "llama-3.1-8b-instant";
       const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -56,7 +112,8 @@ export async function parseExerciseWithLLM(opts: LLMOptions): Promise<Exercise> 
       }
       const data = (await res.json()) as { choices: Array<{ message: { content: string } }> };
       jsonStr = data.choices?.[0]?.message?.content ?? "";
-    } else {
+    }
+    if (!jsonStr && hasAnthropic) {
       const model = process.env.TUTOR_MODEL ?? process.env.PARSE_MODEL ?? "claude-sonnet-4-20250514";
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",

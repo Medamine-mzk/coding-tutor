@@ -68,12 +68,40 @@ if __name__ == "__main__":
   return null;
 }
 
+async function callGeminiForReference(system: string, user: string): Promise<string> {
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (!geminiKey) throw new Error("No Gemini key");
+  const model = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  let fullUrl = url;
+  if (geminiKey.startsWith("AQ.")) headers["Authorization"] = `Bearer ${geminiKey}`;
+  else {
+    headers["x-goog-api-key"] = geminiKey;
+    fullUrl = `${url}?key=${encodeURIComponent(geminiKey)}`;
+  }
+  const body = {
+    contents: [{ role: "user", parts: [{ text: `${system}\n\n${user}` }] }],
+    systemInstruction: { parts: [{ text: system }] },
+    generationConfig: { temperature: 0.2, maxOutputTokens: 1500 },
+  };
+  const res = await fetch(fullUrl, { method: "POST", headers, body: JSON.stringify(body) });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Gemini ${res.status}: ${txt.slice(0, 500)}`);
+  }
+  const data = (await res.json()) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+}
+
 export async function generateReferenceSolutionLLM(exercise: Exercise): Promise<string | null> {
+  const geminiKey = process.env.GEMINI_API_KEY;
   const groqKey = process.env.GROQ_API_KEY;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const hasGemini = !!geminiKey;
   const hasGroq = !!groqKey;
   const hasAnthropic = !!anthropicKey;
-  if (!hasGroq && !hasAnthropic) return generateHeuristicReference(exercise);
+  if (!hasGemini && !hasGroq && !hasAnthropic) return generateHeuristicReference(exercise);
 
   const examplesStr = exercise.examples.map((e) => `Input: ${e.input} -> Output: ${e.output}`).join("\n");
   const system =
@@ -85,7 +113,19 @@ export async function generateReferenceSolutionLLM(exercise: Exercise): Promise<
 
   try {
     let textPart = "";
-    if (hasGroq) {
+    if (hasGemini) {
+      try {
+        textPart = await callGeminiForReference(system, userContent);
+      } catch (e) {
+        console.warn("[reference] Gemini failed, falling back:", e instanceof Error ? e.message : String(e));
+        if (hasGroq) {
+          // fall through to Groq
+        } else if (hasAnthropic) {
+          // fall through to Anthropic
+        } else throw e;
+      }
+    }
+    if (!textPart && hasGroq) {
       const groqModel = process.env.GROQ_MODEL ?? process.env.TUTOR_MODEL ?? "llama-3.1-8b-instant";
       const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -107,7 +147,8 @@ export async function generateReferenceSolutionLLM(exercise: Exercise): Promise<
       if (!res.ok) throw new Error(`Groq ${res.status}`);
       const data = (await res.json()) as { choices: Array<{ message: { content: string } }> };
       textPart = data.choices?.[0]?.message?.content ?? "";
-    } else {
+    }
+    if (!textPart && hasAnthropic) {
       const model = process.env.TUTOR_MODEL ?? process.env.PARSE_MODEL ?? "claude-sonnet-4-20250514";
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
