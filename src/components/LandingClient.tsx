@@ -5,6 +5,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ExerciseConfirm } from "./ExerciseConfirm";
+import { FileUpload } from "./FileUpload";
 import type { Exercise } from "@/lib/exercise/types";
 
 export function LandingClient() {
@@ -112,9 +113,18 @@ export function LandingClient() {
                 {loading ? "Analyse…" : t("landing.choosePython")}
               </button>
             </div>
-            <p className="mt-3 text-center text-xs text-zinc-500">
-              PDF, image, docx · {locale === "fr" ? "bientôt" : locale === "ar" ? "قريبا" : "soon"} · 5 MB max
-            </p>
+            <FileUpload
+              onSingle={(ex) => {
+                setError(null);
+                setClarification(null);
+                setExercise(ex);
+                queueMicrotask(() => document.getElementById("confirm")?.scrollIntoView({ behavior: "smooth" }));
+              }}
+              onError={(msg) => {
+                setError(msg);
+                setClarification(null);
+              }}
+            />
             {error ? (
               <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-200" role="alert" data-testid="parse-error">
                 {error}
@@ -160,7 +170,7 @@ export function LandingClient() {
 
       <section className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
-          Ticket 03 — intake texte branché sur <code>/api/exercise/parse</code> avec heuristiques + LLM fallback et défense anti-injection. La confirmation est éditable avant l&apos;atelier.
+          Ticket 08 — upload .txt/.md/.pdf/.docx + images (vision OCR) branché sur <code>/api/exercise/upload</code> (5 Mo, multi-exercice picker, anti-injection). Texte + fichiers partagent la même confirmation éditable.
         </div>
       </section>
     </div>
