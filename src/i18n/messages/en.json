@@ -1,0 +1,51 @@
+{
+  "common": {
+    "appName": "Mchi Nekteb",
+    "appSubtitle": "Code Guide",
+    "tagline": "Learn to code by doing — guided, never given",
+    "getStarted": "Get started",
+    "chooseLanguage": "Choose language",
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "landing": {
+    "heroTitle": "Learn Python by doing",
+    "heroSubtitle": "Paste your exercise, code in the browser, and progress with a tutor that guides without ever giving the full solution.",
+    "howItWorks": "How it works",
+    "step1Title": "Bring your exercise",
+    "step1Desc": "Type, paste or upload a file (PDF, image, docx). AI structures it for you.",
+    "step2Title": "Code and run",
+    "step2Desc": "Lightweight editor + Python in the browser (Pyodide). Instant feedback, even offline.",
+    "step3Title": "Get guided",
+    "step3Desc": "Socratic questions, progressive hints, error explanations — never the full answer.",
+    "cta": "Paste an exercise",
+    "library": "Or pick from the library",
+    "pythonOnly": "Launch: Python. Architecture ready for more languages.",
+    "principles": "Principles: never the full solution, progressive hints, offline-first",
+    "choosePython": "Continue with Python",
+    "pastePlaceholder": "Paste your exercise statement here..."
+  },
+  "nav": {
+    "home": "Home",
+    "workspace": "Workspace",
+    "library": "Library"
+  },
+  "footer": {
+    "offline": "Works offline once cached",
+    "privacy": "Privacy and data respect (INPDP)"
+  },
+  "workspace": {
+    "exercise": "Exercise",
+    "steps": "Steps",
+    "editor": "Editor",
+    "console": "Console",
+    "tutor": "Tutor",
+    "run": "Run",
+    "stop": "Stop",
+    "tests": "Tests",
+    "hint": "Hint",
+    "stuck": "I'm stuck",
+    "explainError": "Explain error",
+    "checkApproach": "Check my approach"
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "common": {
+    "appName": "Mchi Nekteb",
+    "appSubtitle": "Code Guide",
+    "tagline": "Apprends à programmer en faisant — guidé, jamais donné",
+    "getStarted": "Commencer",
+    "chooseLanguage": "Choisir la langue",
+    "light": "Clair",
+    "dark": "Sombre"
+  },
+  "landing": {
+    "heroTitle": "Apprends Python en faisant",
+    "heroSubtitle": "Colle ton exercice, code dans le navigateur, et progresse avec un tuteur qui te guide sans jamais donner la solution.",
+    "howItWorks": "Comment ça marche",
+    "step1Title": "Apporte ton exercice",
+    "step1Desc": "Saisis, colle ou importe un fichier (PDF, image, docx). L'IA structure l'exercice pour toi.",
+    "step2Title": "Code et exécute",
+    "step2Desc": "Éditeur léger + Python dans le navigateur (Pyodide). Résultats instantanés, même hors ligne.",
+    "step3Title": "Sois guidé",
+    "step3Desc": "Questions socratiques, indices progressifs, explications d'erreurs — jamais la solution complète.",
+    "cta": "Coller un exercice",
+    "library": "Ou choisir dans la bibliothèque",
+    "pythonOnly": "Lancement : Python. Architecture prête pour d'autres langages.",
+    "principles": "Principes : jamais la solution complète, indices progressifs, offline-first",
+    "choosePython": "Continuer avec Python",
+    "pastePlaceholder": "Colle ici l'énoncé de ton exercice..."
+  },
+  "nav": {
+    "home": "Accueil",
+    "workspace": "Atelier",
+    "library": "Bibliothèque"
+  },
+  "footer": {
+    "offline": "Fonctionne hors ligne une fois mis en cache",
+    "privacy": "Respect de la vie privée et des données (INPDP)"
+  },
+  "workspace": {
+    "exercise": "Exercice",
+    "steps": "Étapes",
+    "editor": "Éditeur",
+    "console": "Console",
+    "tutor": "Tuteur",
+    "run": "Exécuter",
+    "stop": "Arrêter",
+    "tests": "Tests",
+    "hint": "Indice",
+    "stuck": "Je suis bloqué",
+    "explainError": "Expliquer l'erreur",
+    "checkApproach": "Vérifier mon approche"
+  }
+}

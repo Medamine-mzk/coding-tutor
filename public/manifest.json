@@ -1,0 +1,19 @@
+{
+  "name": "Mchi Nekteb — Code Guide",
+  "short_name": "Mchi Nekteb",
+  "description": "Apprends Python en faisant — tuteur guidé, jamais la solution. Learn by doing.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#18181b",
+  "lang": "fr",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/window.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
