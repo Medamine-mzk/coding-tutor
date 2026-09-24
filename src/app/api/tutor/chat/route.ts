@@ -5,8 +5,9 @@ import type { ChatRequest, HintLevel, TutorContext } from "@/lib/tutor/types";
 import { checkForLeak, logBlockedLeak } from "@/lib/tutor/antiLeak";
 import type { TestCase } from "@/lib/exercise/types";
 import { generateHeuristicReference } from "@/lib/exercise/reference";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rateLimit";
+import { reportError } from "@/lib/monitoring";
 
-const RATE = new Map<string, { count: number; resetAt: number }>();
 const RATE_MAX = 15;
 const RATE_WINDOW = 60_000;
 
@@ -14,18 +15,6 @@ function getIP(req: NextRequest): string {
   const fwd = req.headers.get("x-forwarded-for");
   if (fwd) return fwd.split(",")[0].trim();
   return req.headers.get("x-real-ip") ?? "unknown";
-}
-
-function checkRate(ip: string): boolean {
-  const now = Date.now();
-  const e = RATE.get(ip);
-  if (!e || now > e.resetAt) {
-    RATE.set(ip, { count: 1, resetAt: now + RATE_WINDOW });
-    return true;
-  }
-  if (e.count >= RATE_MAX) return false;
-  e.count += 1;
-  return true;
 }
 
 function chunkResponse(text: string, hintLevel: HintLevel): ReadableStream<Uint8Array> {
@@ -49,7 +38,9 @@ function chunkResponse(text: string, hintLevel: HintLevel): ReadableStream<Uint8
 
 export async function POST(req: NextRequest) {
   const ip = getIP(req);
-  if (!checkRate(ip)) {
+  const rate = checkRateLimit("tutor", ip, RATE_MAX, RATE_WINDOW);
+  const rateHeaders = rateLimitHeaders(rate.remaining, rate.resetAt, RATE_MAX);
+  if (!rate.allowed) {
     const locale = "fr";
     const text = cannedFallback(0, locale, { exercise: { id: "unknown", title: "", statement: "", ioSpec: "", constraints: [], examples: [], concepts: [], milestones: [] }, code: "", hintHistory: [], locale } as unknown as TutorContext, "rate_limit");
     return new Response(chunkResponse(text, 0), {
@@ -58,6 +49,7 @@ export async function POST(req: NextRequest) {
         "content-type": "text/event-stream",
         "cache-control": "no-cache",
         "x-hint-level": "0",
+        ...rateHeaders,
       },
     });
   }
@@ -65,8 +57,9 @@ export async function POST(req: NextRequest) {
   let body: ChatRequest;
   try {
     body = (await req.json()) as ChatRequest;
-  } catch {
-    return new Response(JSON.stringify({ error: "JSON invalide" }), { status: 400, headers: { "content-type": "application/json" } });
+  } catch (e: unknown) {
+    reportError(e, "tutor: invalid JSON");
+    return new Response(JSON.stringify({ error: "JSON invalide" }), { status: 400, headers: { "content-type": "application/json", ...rateHeaders } });
   }
 
   const locale = (body.locale === "ar" || body.locale === "en" ? body.locale : "fr") as "fr" | "ar" | "en";
@@ -88,7 +81,7 @@ export async function POST(req: NextRequest) {
           : "Je comprends que tu veuilles la réponse, mais mon rôle est que tu apprennes à résoudre toi-même. Continuons avec un petit indice : que s'est-il passé à ta dernière exécution ?";
     const allowed: HintLevel = allowedLevelForRequest(requested, 0, { codeChangedSinceLastHint: false, hasRunSinceLastHint: false, explicitStuck: false });
     return new Response(chunkResponse(text, allowed), {
-      headers: { "content-type": "text/event-stream", "x-hint-level": String(allowed) },
+      headers: { "content-type": "text/event-stream", "x-hint-level": String(allowed), ...rateHeaders },
     });
   }
 
@@ -235,6 +228,7 @@ export async function POST(req: NextRequest) {
       "cache-control": "no-cache",
       "x-hint-level": String(allowed),
       ...(blockedReason ? { "x-blocked-reason": blockedReason } : {}),
+      ...rateHeaders,
     },
   });
 }

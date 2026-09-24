@@ -94,13 +94,16 @@ export function FileUpload({ onSingle, onMultiple, onError }: Props) {
         tabIndex={0}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") inputRef.current?.click(); }}
         aria-label={locale === "ar" ? "رفع ملف" : locale === "en" ? "Upload file" : "Importer un fichier"}
-        className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-4 text-center cursor-pointer transition-colors ${dragOver ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-950" : "border-black/10 bg-zinc-50 hover:bg-zinc-100 dark:border-white/10 dark:bg-zinc-800 dark:hover:bg-zinc-700"}`}
+        aria-busy={loading}
+        aria-describedby={error ? "file-error" : undefined}
+        className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-4 text-center cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${dragOver ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-950" : "border-black/10 bg-zinc-50 hover:bg-zinc-100 dark:border-white/10 dark:bg-zinc-800 dark:hover:bg-zinc-700"}`}
         data-testid="file-dropzone"
       >
         <input
           ref={inputRef}
           type="file"
           accept={ACCEPT}
+          aria-label={locale === "ar" ? "اختيار ملف" : locale === "en" ? "Choose file" : "Choisir un fichier"}
           className="hidden"
           onChange={(e) => handleFiles(e.target.files)}
           data-testid="file-input"
@@ -114,17 +117,17 @@ export function FileUpload({ onSingle, onMultiple, onError }: Props) {
       </div>
 
       {error ? (
-        <div className="mt-2 rounded-xl border border-red-200 bg-red-50 p-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-200" role="alert" data-testid="file-error">
+        <div id="file-error" className="mt-2 rounded-xl border border-red-200 bg-red-50 p-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-200" role="alert" aria-live="assertive" data-testid="file-error">
           {error}
         </div>
       ) : null}
 
       {multiple ? (
-        <div className="mt-3 rounded-xl border border-black/10 bg-white p-3 dark:border-white/10 dark:bg-zinc-900" data-testid="multi-picker">
+        <div className="mt-3 rounded-xl border border-black/10 bg-white p-3 dark:border-white/10 dark:bg-zinc-900" data-testid="multi-picker" role="region" aria-label={locale === "ar" ? "اختيار تمرين" : locale === "en" ? "Pick exercise" : "Choix d'exercice"}>
           <p className="text-sm font-medium">
             {locale === "ar" ? `تم العثور على ${multiple.length} تمارين` : locale === "en" ? `${multiple.length} exercises found — pick one` : `${multiple.length} exercices trouvés — choisissez-en un`}
           </p>
-          <ul className="mt-2 space-y-1">
+          <ul className="mt-2 space-y-1" role="radiogroup" aria-label={locale === "ar" ? "قائمة التمارين" : locale === "en" ? "Exercise list" : "Liste d'exercices"}>
             {multiple.map((ex, idx) => (
               <li key={ex.id}>
                 <label className={`flex items-center gap-2 rounded-lg border px-2 py-1 text-sm cursor-pointer ${selectedIdx === idx ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-950" : "border-black/10 dark:border-white/10"}`}>
@@ -133,6 +136,7 @@ export function FileUpload({ onSingle, onMultiple, onError }: Props) {
                     name="multi-ex"
                     checked={selectedIdx === idx}
                     onChange={() => setSelectedIdx(idx)}
+                    aria-label={ex.title}
                     data-testid={`multi-radio-${idx}`}
                   />
                   <span className="flex-1 truncate">{ex.title}</span>

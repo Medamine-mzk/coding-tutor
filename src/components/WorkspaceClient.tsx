@@ -156,7 +156,7 @@ export function WorkspaceClient() {
       </div>
 
       <div className="flex flex-1 flex-col gap-4 p-4 lg:grid lg:grid-cols-[300px_1fr_340px] lg:gap-4 lg:p-4">
-        <div className={`${activeTab !== "exercise" ? "hidden lg:flex" : "flex"} flex-col gap-4`}>
+        <div role="region" aria-label={t("workspace.exercise") + " & " + (t("workspace.steps") ?? "Steps")} className={`${activeTab !== "exercise" ? "hidden lg:flex" : "flex"} flex-col gap-4`}>
           <div className="rounded-2xl border border-black/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
             <h2 className="font-semibold">{loadedExercise?.title ?? t("workspace.exercise")}</h2>
             <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{loadedExercise ? loadedExercise.statement.slice(0, 160) : "Exemple : lire deux entiers et afficher leur somme."}</p>
@@ -203,7 +203,7 @@ export function WorkspaceClient() {
           </div>
         </div>
 
-        <div className={`${activeTab !== "editor" ? "hidden lg:flex" : "flex"} flex flex-col gap-3`}>
+        <div role="region" aria-label={`${t("workspace.editor")} & ${t("workspace.console")}`} className={`${activeTab !== "editor" ? "hidden lg:flex" : "flex"} flex flex-col gap-3`}>
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-black/10 bg-white p-3 dark:border-white/10 dark:bg-zinc-900">
             <div className="flex items-center gap-2">
               <button onClick={handleRun} disabled={running} data-testid="run-btn" className="inline-flex h-9 items-center gap-2 rounded-full bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:disabled:bg-zinc-700">
@@ -292,7 +292,7 @@ export function WorkspaceClient() {
           ) : null}
         </div>
 
-        <div className={`${activeTab !== "tutor" ? "hidden lg:flex" : "flex"} flex-col gap-4`}>
+        <div role="region" aria-label={t("workspace.tutor")} className={`${activeTab !== "tutor" ? "hidden lg:flex" : "flex"} flex-col gap-4`}>
           <TutorChat
             exercise={
               loadedExercise

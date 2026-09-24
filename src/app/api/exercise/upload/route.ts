@@ -5,8 +5,9 @@ import { validateFile, extractTextFromFile, splitMultipleExercises, MAX_FILE_SIZ
 import { generateReferenceSolutionLLM } from "@/lib/exercise/reference";
 import { validateTestsWithReference } from "@/lib/exercise/validate";
 import type { Exercise } from "@/lib/exercise/types";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rateLimit";
+import { reportError } from "@/lib/monitoring";
 
-const RATE = new Map<string, { count: number; resetAt: number }>();
 const RATE_MAX = 15;
 const RATE_WINDOW = 60_000;
 
@@ -16,34 +17,25 @@ function getIP(req: NextRequest): string {
   return req.headers.get("x-real-ip") ?? "unknown";
 }
 
-function checkRate(ip: string): boolean {
-  const now = Date.now();
-  const e = RATE.get(ip);
-  if (!e || now > e.resetAt) {
-    RATE.set(ip, { count: 1, resetAt: now + RATE_WINDOW });
-    return true;
-  }
-  if (e.count >= RATE_MAX) return false;
-  e.count += 1;
-  return true;
-}
-
 export async function POST(req: NextRequest) {
   const ip = getIP(req);
-  if (!checkRate(ip)) {
-    return NextResponse.json({ error: "Trop de requêtes. Réessaie dans une minute." }, { status: 429 });
+  const rate = checkRateLimit("upload", ip, RATE_MAX, RATE_WINDOW);
+  const rateHeaders = rateLimitHeaders(rate.remaining, rate.resetAt, RATE_MAX);
+  if (!rate.allowed) {
+    return NextResponse.json({ error: "Trop de requêtes. Réessaie dans une minute." }, { status: 429, headers: rateHeaders });
   }
 
   let form: FormData;
   try {
     form = await req.formData();
-  } catch {
-    return NextResponse.json({ error: "FormData invalide" }, { status: 400 });
+  } catch (e: unknown) {
+    reportError(e, "upload: formData");
+    return NextResponse.json({ error: "FormData invalide" }, { status: 400, headers: rateHeaders });
   }
 
   const fileEntry = form.get("file");
   if (!fileEntry || typeof fileEntry === "string") {
-    return NextResponse.json({ error: "Champ 'file' requis" }, { status: 400 });
+    return NextResponse.json({ error: "Champ 'file' requis" }, { status: 400, headers: rateHeaders });
   }
 
   // Accept File, Blob, or plain file-like object (for tests)
@@ -72,7 +64,8 @@ export async function POST(req: NextRequest) {
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: "Impossible de lire le fichier", detail: msg }, { status: 400 });
+    reportError(e, "upload: read file");
+    return NextResponse.json({ error: "Impossible de lire le fichier", detail: msg }, { status: 400, headers: rateHeaders });
   }
 
   // Use derived values for validation (fallback to fileEntry size if needed)
@@ -83,12 +76,12 @@ export async function POST(req: NextRequest) {
   // Validate size and type via sniffing
   const validation = validateFile({ name: effectiveName, size: effectiveSize, type: effectiveType }, buffer);
   if (!validation.valid) {
-    return NextResponse.json({ error: validation.error }, { status: 400 });
+    return NextResponse.json({ error: validation.error }, { status: 400, headers: rateHeaders });
   }
 
   // Also enforce 5MB hard limit (validateFile already does)
   if (effectiveSize > MAX_FILE_SIZE) {
-    return NextResponse.json({ error: "Fichier trop volumineux (5 Mo max)" }, { status: 400 });
+    return NextResponse.json({ error: "Fichier trop volumineux (5 Mo max)" }, { status: 400, headers: rateHeaders });
   }
 
   let extractedText: string;
@@ -99,12 +92,12 @@ export async function POST(req: NextRequest) {
     detectedType = res.detectedType;
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: "Impossible d'extraire le texte du fichier", detail: msg }, { status: 400 });
+    return NextResponse.json({ error: "Impossible d'extraire le texte du fichier", detail: msg }, { status: 400, headers: rateHeaders });
   }
 
   const trimmed = extractedText.trim();
   if (trimmed.length === 0) {
-    return NextResponse.json({ error: "Aucun texte trouvé dans le fichier" }, { status: 400 });
+    return NextResponse.json({ error: "Aucun texte trouvé dans le fichier" }, { status: 400, headers: rateHeaders });
   }
   if (trimmed.length > 8000) {
     // Truncate for parsing but warn
@@ -146,12 +139,12 @@ export async function POST(req: NextRequest) {
           : lang === "en"
             ? "No exercise recognized in the file. Make sure it contains exercise statements."
             : "Aucun exercice reconnu dans le fichier. Vérifiez qu'il contient des énoncés.";
-      return NextResponse.json({ isExercise: false, clarification, detectedLanguage: lang }, { status: 200 });
+      return NextResponse.json({ isExercise: false, clarification, detectedLanguage: lang }, { status: 200, headers: rateHeaders });
     }
     if (exercises.length === 1) {
-      return NextResponse.json({ isExercise: true, exercise: exercises[0], detectedType }, { status: 200 });
+      return NextResponse.json({ isExercise: true, exercise: exercises[0], detectedType }, { status: 200, headers: rateHeaders });
     }
-    return NextResponse.json({ isExercise: true, multiple: true, exercises, count: exercises.length, detectedType }, { status: 200 });
+    return NextResponse.json({ isExercise: true, multiple: true, exercises, count: exercises.length, detectedType }, { status: 200, headers: rateHeaders });
   }
 
   // Single exercise path — reuse same logic as /parse but with upload source
@@ -163,7 +156,7 @@ export async function POST(req: NextRequest) {
         : lang === "en"
           ? "This does not look like a programming exercise. Make sure the file contains the full statement."
           : "Ceci ne ressemble pas à un exercice. Vérifiez que le fichier contient l'énoncé complet.";
-    return NextResponse.json({ isExercise: false, clarification, detectedLanguage: lang, detectedType }, { status: 200 });
+    return NextResponse.json({ isExercise: false, clarification, detectedLanguage: lang, detectedType }, { status: 200, headers: rateHeaders });
   }
 
   try {
@@ -187,10 +180,11 @@ export async function POST(req: NextRequest) {
       console.warn("[upload] validation skipped:", e instanceof Error ? e.message : String(e));
     }
 
-    return NextResponse.json({ isExercise: true, exercise, detectedType }, { status: 200 });
+    return NextResponse.json({ isExercise: true, exercise, detectedType }, { status: 200, headers: rateHeaders });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: "Erreur lors de l'analyse", detail: msg }, { status: 500 });
+    reportError(e, "upload: parse");
+    return NextResponse.json({ error: "Erreur lors de l'analyse", detail: msg }, { status: 500, headers: rateHeaders });
   }
 }
 

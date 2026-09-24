@@ -195,24 +195,25 @@ export function TutorChat({ exercise, code, lastRunResult, testReport, currentMi
         {offline ? <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">Hors ligne — tutor offline</p> : null}
       </div>
 
-      <div ref={listRef} className="flex flex-1 flex-col gap-3 overflow-auto p-3" style={{ minHeight: 200 }} data-testid="tutor-messages">
+      <div ref={listRef} role="log" aria-live="polite" aria-label={locale === "ar" ? "سجل المحادثة" : locale === "en" ? "Chat history" : "Historique du tuteur"} className="flex flex-1 flex-col gap-3 overflow-auto p-3" style={{ minHeight: 200 }} data-testid="tutor-messages">
         {messages.map((m) => (
           <div key={m.id} className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-6 ${m.role === "student" ? "self-end bg-zinc-900 text-white dark:bg-white dark:text-zinc-900" : "self-start bg-zinc-50 dark:bg-zinc-800"}`} data-testid={`msg-${m.role}`}>
             <p className="whitespace-pre-wrap break-words">{m.content || (streaming && m.role === "tutor" && m.content === "" ? "…" : m.content)}</p>
             {m.hintLevel !== undefined ? <span className="mt-1 block text-xs text-zinc-500">Hint level {m.hintLevel}</span> : null}
           </div>
         ))}
-        {streaming ? <span className="self-start text-xs text-zinc-500">streaming…</span> : null}
+        {streaming ? <span className="self-start text-xs text-zinc-500" aria-live="polite">streaming…</span> : null}
       </div>
 
-      <div className="grid grid-cols-2 gap-2 border-t border-black/10 p-3 dark:border-white/10">
+      <div className="grid grid-cols-2 gap-2 border-t border-black/10 p-3 dark:border-white/10" role="group" aria-label={locale === "ar" ? "إجراءات سريعة" : locale === "en" ? "Quick actions" : "Actions rapides"}>
         {QUICK_ACTIONS.map((a) => (
           <button
             key={a.key}
             onClick={() => handleQuick(a.key)}
             disabled={streaming}
+            aria-label={a[locale === "ar" ? "ar" : locale === "en" ? "en" : "fr"]}
             data-testid={`quick-${a.key}`}
-            className="rounded-full border border-black/10 bg-white px-3 py-2 text-xs font-medium hover:bg-zinc-50 disabled:opacity-50 dark:border-white/15 dark:bg-zinc-800"
+            className="rounded-full border border-black/10 bg-white px-3 py-2 text-xs font-medium hover:bg-zinc-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 disabled:opacity-50 dark:border-white/15 dark:bg-zinc-800 dark:focus-visible:ring-white"
           >
             {a[locale === "ar" ? "ar" : locale === "en" ? "en" : "fr"]}
           </button>
@@ -225,12 +226,14 @@ export function TutorChat({ exercise, code, lastRunResult, testReport, currentMi
           send({ studentMessage: input });
         }}
         className="flex gap-2 border-t border-black/10 p-3 dark:border-white/10"
+        aria-label={locale === "ar" ? "إرسال رسالة" : locale === "en" ? "Send message" : "Envoyer un message"}
       >
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={locale === "ar" ? "اكتب رسالتك…" : locale === "en" ? "Type your message…" : "Écris ton message…"}
-          className="flex-1 rounded-full border border-black/10 bg-zinc-50 px-4 py-2 text-sm placeholder:text-zinc-400 focus:border-zinc-300 focus:bg-white focus:outline-none dark:border-white/10 dark:bg-zinc-800"
+          aria-label={locale === "ar" ? "حقل الرسالة" : locale === "en" ? "Message input" : "Champ de message"}
+          className="flex-1 rounded-full border border-black/10 bg-zinc-50 px-4 py-2 text-sm placeholder:text-zinc-400 focus:border-zinc-300 focus:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 dark:border-white/10 dark:bg-zinc-800 dark:focus-visible:ring-white"
           disabled={streaming}
           maxLength={1000}
           data-testid="tutor-input"
@@ -238,8 +241,9 @@ export function TutorChat({ exercise, code, lastRunResult, testReport, currentMi
         <button
           type="submit"
           disabled={streaming || !input.trim()}
+          aria-label={locale === "ar" ? "إرسال" : locale === "en" ? "Send" : "Envoyer"}
           data-testid="tutor-send"
-          className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-white dark:text-zinc-900"
+          className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 disabled:opacity-50 dark:bg-white dark:text-zinc-900 dark:focus-visible:ring-white"
         >
           ➤
         </button>

@@ -43,7 +43,7 @@ export function ExerciseConfirm({ exercise: initial, onConfirm, onCancel }: Prop
   }
 
   return (
-    <div className="rounded-2xl border border-black/10 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-zinc-900" data-testid="confirm-card" dir={dir}>
+    <div role="form" aria-label={locale === "ar" ? "تأكيد التمرين" : locale === "en" ? "Confirm exercise" : "Confirmer l'exercice"} className="rounded-2xl border border-black/10 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-zinc-900" data-testid="confirm-card" dir={dir}>
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold">

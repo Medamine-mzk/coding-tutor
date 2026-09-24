@@ -6,6 +6,7 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { Analytics } from "@/components/Analytics";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -39,10 +40,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="fr" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col bg-white dark:bg-zinc-950">
         <I18nProvider>
+          <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-zinc-900 focus:px-4 focus:py-2 focus:text-white">
+            Aller au contenu principal
+          </a>
           <ServiceWorkerRegister />
+          <Analytics />
           <OfflineBanner />
           <Header />
-          <main className="flex flex-1 flex-col">{children}</main>
+          <main id="main" className="flex flex-1 flex-col" tabIndex={-1}>
+            {children}
+          </main>
           <Footer />
         </I18nProvider>
       </body>

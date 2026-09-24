@@ -16,11 +16,11 @@ export function TestRunner({ tests, report, running }: Props) {
   const reportMap = new Map(report?.results.map((r) => [r.testId, r]) ?? []);
 
   return (
-    <div className="rounded-xl border border-black/10 bg-white p-3 dark:border-white/10 dark:bg-zinc-900" data-testid="test-runner">
+    <div className="rounded-xl border border-black/10 bg-white p-3 dark:border-white/10 dark:bg-zinc-900" data-testid="test-runner" role="region" aria-label="Test runner" aria-live="polite">
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-semibold">Tests</h4>
         {report ? (
-          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${report.failed === 0 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"}`} data-testid="test-summary">
+          <span role="status" aria-live="polite" className={`rounded-full px-2 py-0.5 text-xs font-medium ${report.failed === 0 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"}`} data-testid="test-summary">
             {report.passed}/{report.total} passés
           </span>
         ) : (

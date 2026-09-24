@@ -50,28 +50,29 @@ export function LibraryClient() {
         </p>
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-3">
+      <div className="mt-6 flex flex-wrap gap-3" role="search" aria-label={locale === "ar" ? "بحث وتصفية المكتبة" : locale === "en" ? "Search and filter library" : "Rechercher et filtrer"}>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={locale === "ar" ? "بحث..." : locale === "en" ? "Search..." : "Rechercher..."}
-          className="min-w-[200px] flex-1 rounded-full border border-black/10 bg-white px-4 py-2 text-sm dark:border-white/10 dark:bg-zinc-900"
+          aria-label={locale === "ar" ? "بحث في المكتبة" : locale === "en" ? "Search library" : "Rechercher dans la bibliothèque"}
+          className="min-w-[200px] flex-1 rounded-full border border-black/10 bg-white px-4 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 dark:border-white/10 dark:bg-zinc-900 dark:focus-visible:ring-white"
           data-testid="library-search"
         />
-        <select value={filterLocale} onChange={(e) => setFilterLocale(e.target.value as typeof filterLocale)} className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-zinc-900" data-testid="filter-locale">
+        <select value={filterLocale} onChange={(e) => setFilterLocale(e.target.value as typeof filterLocale)} aria-label={locale === "ar" ? "تصفية حسب اللغة" : locale === "en" ? "Filter by language" : "Filtrer par langue"} className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 dark:border-white/10 dark:bg-zinc-900 dark:focus-visible:ring-white" data-testid="filter-locale">
           <option value="all">{locale === "ar" ? "كل اللغات" : locale === "en" ? "All languages" : "Toutes langues"}</option>
           <option value="fr">Français</option>
           <option value="ar">العربية</option>
           <option value="en">English</option>
         </select>
-        <select value={filterDiff} onChange={(e) => setFilterDiff(e.target.value as typeof filterDiff)} className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-zinc-900" data-testid="filter-diff">
+        <select value={filterDiff} onChange={(e) => setFilterDiff(e.target.value as typeof filterDiff)} aria-label={locale === "ar" ? "تصفية حسب الصعوبة" : locale === "en" ? "Filter by difficulty" : "Filtrer par difficulté"} className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 dark:border-white/10 dark:bg-zinc-900 dark:focus-visible:ring-white" data-testid="filter-diff">
           <option value="all">{locale === "ar" ? "كل المستويات" : locale === "en" ? "All levels" : "Tous niveaux"}</option>
           <option value="1">1 — {locale === "ar" ? "سهل" : locale === "en" ? "Easy" : "Facile"}</option>
           <option value="2">2</option>
           <option value="3">3</option>
           <option value="4">4</option>
         </select>
-        <select value={filterConcept} onChange={(e) => setFilterConcept(e.target.value)} className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-zinc-900" data-testid="filter-concept">
+        <select value={filterConcept} onChange={(e) => setFilterConcept(e.target.value)} aria-label={locale === "ar" ? "تصفية حسب المفهوم" : locale === "en" ? "Filter by concept" : "Filtrer par concept"} className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 dark:border-white/10 dark:bg-zinc-900 dark:focus-visible:ring-white" data-testid="filter-concept">
           <option value="all">{locale === "ar" ? "كل المفاهيم" : locale === "en" ? "All concepts" : "Tous concepts"}</option>
           <option value="loops">loops</option>
           <option value="conditionals">conditionals</option>
@@ -84,13 +85,13 @@ export function LibraryClient() {
         </select>
       </div>
 
-      <p className="mt-3 text-xs text-zinc-500" data-testid="library-count">
+      <p className="mt-3 text-xs text-zinc-500" data-testid="library-count" aria-live="polite">
         {filtered.length} / {LIBRARY_EXERCISES.length} {locale === "ar" ? "تمرين" : locale === "en" ? "exercises" : "exercices"}
       </p>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="library-grid">
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="library-grid" role="list" aria-label={locale === "ar" ? "قائمة التمارين" : locale === "en" ? "Exercise list" : "Liste d'exercices"}>
         {filtered.map((ex) => (
-          <div key={ex.id} className="flex flex-col rounded-2xl border border-black/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900" data-testid={`lib-card-${ex.id}`}>
+          <div key={ex.id} role="listitem" className="flex flex-col rounded-2xl border border-black/10 bg-white p-4 focus-within:ring-2 focus-within:ring-zinc-900 dark:border-white/10 dark:bg-zinc-900 dark:focus-within:ring-white" data-testid={`lib-card-${ex.id}`}>
             <div className="flex items-start justify-between gap-2">
               <h3 className="text-sm font-semibold leading-5">{ex.title}</h3>
               <span className="shrink-0 rounded-full bg-zinc-900 px-2 py-0.5 text-xs font-medium text-white dark:bg-white dark:text-zinc-900">{ex.difficulty}</span>

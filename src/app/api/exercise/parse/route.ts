@@ -3,10 +3,10 @@ import { isExerciseLike, detectLanguage, sanitizeForLLM } from "@/lib/exercise/p
 import { parseExerciseWithLLM } from "@/lib/exercise/llm";
 import { generateReferenceSolutionLLM } from "@/lib/exercise/reference";
 import { validateTestsWithReference } from "@/lib/exercise/validate";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rateLimit";
+import { reportError } from "@/lib/monitoring";
 
-// Simple in-memory rate limit per IP (MVP, resets on restart)
-const RATE_LIMIT = new Map<string, { count: number; resetAt: number }>();
-const RATE_MAX = 20; // per minute
+const RATE_MAX = 20;
 const RATE_WINDOW_MS = 60_000;
 
 function getIP(req: NextRequest): string {
@@ -15,45 +15,36 @@ function getIP(req: NextRequest): string {
   return req.headers.get("x-real-ip") ?? "unknown";
 }
 
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const entry = RATE_LIMIT.get(ip);
-  if (!entry || now > entry.resetAt) {
-    RATE_LIMIT.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
-    return true;
-  }
-  if (entry.count >= RATE_MAX) return false;
-  entry.count += 1;
-  return true;
-}
-
 export async function POST(req: NextRequest) {
   const ip = getIP(req);
-  if (!checkRateLimit(ip)) {
-    return NextResponse.json({ error: "Trop de requêtes. Réessaie dans une minute." }, { status: 429 });
+  const rate = checkRateLimit("parse", ip, RATE_MAX, RATE_WINDOW_MS);
+  const rateHeaders = rateLimitHeaders(rate.remaining, rate.resetAt, RATE_MAX);
+  if (!rate.allowed) {
+    return NextResponse.json({ error: "Trop de requêtes. Réessaie dans une minute." }, { status: 429, headers: rateHeaders });
   }
 
   let body: unknown;
   try {
     body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Requête JSON invalide" }, { status: 400 });
+  } catch (e: unknown) {
+    reportError(e, "parse: invalid JSON");
+    return NextResponse.json({ error: "Requête JSON invalide" }, { status: 400, headers: rateHeaders });
   }
 
   const { text, source } = body as { text?: unknown; source?: unknown };
   if (typeof text !== "string") {
-    return NextResponse.json({ error: "Champ 'text' requis (string)" }, { status: 400 });
+    return NextResponse.json({ error: "Champ 'text' requis (string)" }, { status: 400, headers: rateHeaders });
   }
 
   const trimmed = text.trim();
   if (trimmed.length === 0) {
-    return NextResponse.json({ error: "Texte vide" }, { status: 400 });
+    return NextResponse.json({ error: "Texte vide" }, { status: 400, headers: rateHeaders });
   }
   if (trimmed.length > 8000) {
-    return NextResponse.json({ error: "Texte trop long (max 8000 caractères)" }, { status: 400 });
+    return NextResponse.json({ error: "Texte trop long (max 8000 caractères)" }, { status: 400, headers: rateHeaders });
   }
   if (trimmed.length < 10) {
-    return NextResponse.json({ isExercise: false, clarification: "Texte trop court pour être un exercice. Peux-tu coller l'énoncé complet ?", detectedLanguage: detectLanguage(trimmed) }, { status: 200 });
+    return NextResponse.json({ isExercise: false, clarification: "Texte trop court pour être un exercice. Peux-tu coller l'énoncé complet ?", detectedLanguage: detectLanguage(trimmed) }, { status: 200, headers: rateHeaders });
   }
 
   // Treat raw as untrusted — sanitize length already. Do not evaluate any instructions inside text.
@@ -68,7 +59,7 @@ export async function POST(req: NextRequest) {
         : lang === "en"
           ? "This does not look like a programming exercise. Please paste the full statement (description, input/output, examples)."
           : "Ceci ne ressemble pas à un exercice de programmation. Colle l'énoncé complet (description, entrées/sorties, exemples).";
-    return NextResponse.json({ isExercise: false, clarification, detectedLanguage: lang }, { status: 200 });
+    return NextResponse.json({ isExercise: false, clarification, detectedLanguage: lang }, { status: 200, headers: rateHeaders });
   }
 
   try {
@@ -100,10 +91,11 @@ export async function POST(req: NextRequest) {
       console.warn("[parse] validation skipped:", valErr instanceof Error ? valErr.message : String(valErr));
     }
 
-    return NextResponse.json({ isExercise: true, exercise }, { status: 200 });
+    return NextResponse.json({ isExercise: true, exercise }, { status: 200, headers: rateHeaders });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: "Erreur lors de l'analyse de l'exercice", detail: msg }, { status: 500 });
+    reportError(e, "parse: LLM or validation");
+    return NextResponse.json({ error: "Erreur lors de l'analyse de l'exercice", detail: msg }, { status: 500, headers: rateHeaders });
   }
 }
 
