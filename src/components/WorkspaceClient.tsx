@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Editor } from "./Editor";
 import { Console } from "./Console";
+import { TutorChat } from "./TutorChat";
 import { useI18n } from "@/lib/i18n";
 import { PythonRunner } from "@/lib/runners/PythonRunner";
 import type { RunResult, TestCase } from "@/lib/runners/LanguageRunner";
@@ -255,36 +256,26 @@ export function WorkspaceClient() {
         </div>
 
         <div className={`${activeTab !== "tutor" ? "hidden lg:flex" : "flex"} flex-col gap-4`}>
-          <div className="flex flex-1 flex-col rounded-2xl border border-black/10 bg-white dark:border-white/10 dark:bg-zinc-900">
-            <div className="border-b border-black/10 p-3 dark:border-white/10">
-              <h2 className="font-semibold">{t("workspace.tutor")}</h2>
-              <p className="text-xs text-zinc-500">Socratique d&apos;abord - jamais la solution</p>
-            </div>
-            <div className="flex flex-1 flex-col gap-3 p-3">
-              <div className="rounded-xl bg-zinc-50 p-3 text-sm leading-6 dark:bg-zinc-800">
-                <p>Que fait ton programme si l&apos;entree est vide ? Essaie avec stdin vide.</p>
-                <p className="mt-2 text-xs text-zinc-500">Niveau d&apos;indice actuel : 1 - Question guidee</p>
-              </div>
-              <div className="rounded-xl border border-black/10 p-3 text-sm dark:border-white/10">
-                <p className="text-zinc-600 dark:text-zinc-400">Le tuteur complet arrive en Ticket 05. Ici tu peux deja executer et voir les erreurs expliquees au-dessus de la console.</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2 border-t border-black/10 p-3 dark:border-white/10">
-              {[
-                t("workspace.stuck"),
-                t("workspace.explainError"),
-                t("workspace.checkApproach"),
-                t("workspace.hint"),
-              ].map((label) => (
-                <button key={label} className="rounded-full border border-black/10 bg-white px-3 py-2 text-xs font-medium hover:bg-zinc-50 dark:border-white/15 dark:bg-zinc-800">
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3 text-xs leading-5 text-zinc-600 dark:border-white/10 dark:bg-zinc-800 dark:text-zinc-400">
-            Offline : l&apos;editeur et l&apos;execution fonctionnent sans reseau une fois Pyodide mis en cache. Le tuteur necessite le reseau.
-          </div>
+          <TutorChat
+            exercise={
+              loadedExercise
+                ? {
+                    id: (loadedExercise as unknown as { id?: string }).id ?? "ex_unknown",
+                    title: loadedExercise.title,
+                    statement: loadedExercise.statement,
+                    ioSpec: loadedExercise.ioSpec,
+                    constraints: loadedExercise.constraints,
+                    examples: loadedExercise.examples,
+                    concepts: loadedExercise.concepts,
+                    milestones: (loadedExercise.milestones ?? []).map((m: { title: string }) => ({ title: m.title })),
+                  }
+                : undefined
+            }
+            code={code}
+            lastRunResult={status}
+            testReport={testReport as unknown as { passed: number; failed: number; total: number; results: Array<{ testId: string; passed: boolean; message?: string }> } | null}
+            currentMilestoneTitle={loadedExercise?.milestones?.[0]?.title}
+          />
         </div>
       </div>
     </div>
