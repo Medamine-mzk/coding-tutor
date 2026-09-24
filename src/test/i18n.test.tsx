@@ -1,7 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { I18nProvider } from "@/lib/i18n";
 import { LandingClient } from "@/components/LandingClient";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+}));
 
 describe("i18n", () => {
   it("renders landing with French when saved locale is fr", () => {

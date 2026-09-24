@@ -3,14 +3,63 @@
 import { useI18n } from "@/lib/i18n";
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ExerciseConfirm } from "./ExerciseConfirm";
+import type { Exercise } from "@/lib/exercise/types";
 
 export function LandingClient() {
   const { t, locale, dir } = useI18n();
+  const router = useRouter();
   const [exerciseText, setExerciseText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [clarification, setClarification] = useState<string | null>(null);
+  const [exercise, setExercise] = useState<Exercise | null>(null);
+
+  async function handleParse() {
+    const text = exerciseText.trim();
+    if (!text) return;
+    setLoading(true);
+    setError(null);
+    setClarification(null);
+    setExercise(null);
+    try {
+      const res = await fetch("/api/exercise/parse", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text, source: "typed" }),
+      });
+      const data = await res.json() as { isExercise?: boolean; exercise?: Exercise; clarification?: string; error?: string; detail?: string };
+      if (!res.ok) {
+        setError(data.error ?? "Erreur inconnue");
+        return;
+      }
+      if (data.isExercise === false) {
+        setClarification(data.clarification ?? "Ce texte ne ressemble pas à un exercice.");
+        return;
+      }
+      if (data.exercise) {
+        setExercise(data.exercise);
+        // Scroll to confirm card
+        queueMicrotask(() => document.getElementById("confirm")?.scrollIntoView({ behavior: "smooth" }));
+      } else {
+        setError("Réponse inattendue du serveur");
+      }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleConfirm(ex: Exercise) {
+    // Already stored in localStorage by ExerciseConfirm
+    // Navigate to workspace
+    router.push(`/workspace?exerciseId=${encodeURIComponent(ex.id)}`);
+  }
 
   return (
     <div className="flex flex-1 flex-col">
-      {/* Hero */}
       <section className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
         <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
           <div className={`flex flex-col gap-6 ${dir === "rtl" ? "text-right" : "text-left"}`}>
@@ -34,7 +83,6 @@ export function LandingClient() {
             <p className="text-xs text-zinc-500 dark:text-zinc-500">{t("landing.principles")}</p>
           </div>
 
-          {/* Quick intake card */}
           <div id="start" className="rounded-2xl border border-black/10 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-zinc-900">
             <div className="flex items-center justify-between">
               <h2 className="font-semibold">{t("landing.cta")}</h2>
@@ -52,27 +100,45 @@ export function LandingClient() {
               rows={8}
               className="mt-4 w-full resize-none rounded-xl border border-black/10 bg-zinc-50 p-4 text-sm placeholder:text-zinc-400 focus:border-zinc-300 focus:bg-white focus:outline-none dark:border-white/10 dark:bg-zinc-800 dark:placeholder:text-zinc-500 dark:focus:border-zinc-700 dark:focus:bg-zinc-900"
               dir={dir}
+              data-testid="landing-textarea"
             />
             <div className="mt-4 flex gap-3">
               <button
-                disabled={!exerciseText.trim()}
+                disabled={!exerciseText.trim() || loading}
+                onClick={handleParse}
+                data-testid="btn-parse"
                 className="flex-1 rounded-full bg-emerald-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:disabled:bg-zinc-700"
-                onClick={() => {
-                  // Ticket 03 will wire to /api/exercise/parse
-                  alert(exerciseText.slice(0, 200));
-                }}
               >
-                {t("landing.choosePython")}
+                {loading ? "Analyse…" : t("landing.choosePython")}
               </button>
             </div>
             <p className="mt-3 text-center text-xs text-zinc-500">
               PDF, image, docx · {locale === "fr" ? "bientôt" : locale === "ar" ? "قريبا" : "soon"} · 5 MB max
             </p>
+            {error ? (
+              <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-200" role="alert" data-testid="parse-error">
+                {error}
+              </div>
+            ) : null}
+            {clarification ? (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200" data-testid="parse-clarification">
+                {clarification}
+              </div>
+            ) : null}
           </div>
         </div>
       </section>
 
-      {/* How it works */}
+      {exercise ? (
+        <section id="confirm" className="mx-auto w-full max-w-6xl px-4 pb-12 sm:px-6">
+          <ExerciseConfirm
+            exercise={exercise}
+            onConfirm={handleConfirm}
+            onCancel={() => setExercise(null)}
+          />
+        </section>
+      ) : null}
+
       <section id="how" className="border-y border-black/5 bg-zinc-50 dark:border-white/10 dark:bg-zinc-900/50">
         <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
           <h2 className="text-center text-2xl font-semibold">{t("landing.howItWorks")}</h2>
@@ -92,10 +158,9 @@ export function LandingClient() {
         </div>
       </section>
 
-      {/* Coming soon strip */}
       <section className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
-          <strong>Scaffold v0.1</strong> — IDE + runner (Ticket 02) and exercise intake (Ticket 03) land next. This landing is responsive, trilingual, RTL-correct, and Lighthouse-ready.
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
+          Ticket 03 — intake texte branché sur <code>/api/exercise/parse</code> avec heuristiques + LLM fallback et défense anti-injection. La confirmation est éditable avant l&apos;atelier.
         </div>
       </section>
     </div>

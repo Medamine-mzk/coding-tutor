@@ -26,8 +26,20 @@ export function WorkspaceClient() {
   const [errorHint, setErrorHint] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"exercise" | "editor" | "tutor">("editor");
   const [largePasteNotice, setLargePasteNotice] = useState<string | null>(null);
+  const [loadedExercise, setLoadedExercise] = useState<null | { title: string; statement: string; ioSpec: string; constraints: string[]; examples: Array<{ input: string; output: string }>; concepts: string[] }>(null);
 
   const runner = useMemo(() => new PythonRunner(), []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("currentExercise");
+      if (raw) {
+        const parsed = JSON.parse(raw) as { title: string; statement: string; ioSpec: string; constraints: string[]; examples: Array<{ input: string; output: string }>; concepts: string[] };
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate from localStorage once
+        setLoadedExercise(parsed);
+      }
+    } catch {}
+  }, []);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -122,14 +134,18 @@ export function WorkspaceClient() {
       <div className="flex flex-1 flex-col gap-4 p-4 lg:grid lg:grid-cols-[300px_1fr_340px] lg:gap-4 lg:p-4">
         <div className={`${activeTab !== "exercise" ? "hidden lg:flex" : "flex"} flex-col gap-4`}>
           <div className="rounded-2xl border border-black/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
-            <h2 className="font-semibold">{t("workspace.exercise")}</h2>
-            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Exemple : lire deux entiers et afficher leur somme.</p>
+            <h2 className="font-semibold">{loadedExercise?.title ?? t("workspace.exercise")}</h2>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{loadedExercise ? loadedExercise.statement.slice(0, 160) : "Exemple : lire deux entiers et afficher leur somme."}</p>
             <div className="mt-3 rounded-xl bg-zinc-50 p-3 text-sm dark:bg-zinc-800">
               <p className="font-medium">Enonce</p>
-              <p className="mt-1 leading-6">Lire deux entiers sur deux lignes et afficher leur somme sur une ligne.</p>
+              <p className="mt-1 leading-6">{loadedExercise?.statement ?? "Lire deux entiers sur deux lignes et afficher leur somme sur une ligne."}</p>
               <p className="mt-2 font-medium">Exemple</p>
-              <pre className="mt-1 rounded bg-white p-2 font-mono text-xs dark:bg-zinc-900">Entree: 2 3 -&gt; Sortie: 5</pre>
-              <p className="mt-2 text-xs text-zinc-500">Contraintes : -1000 &le; a,b &le; 1000</p>
+              <pre className="mt-1 rounded bg-white p-2 font-mono text-xs dark:bg-zinc-900">
+                {loadedExercise?.examples[0] ? `Entree: ${loadedExercise.examples[0].input} -> Sortie: ${loadedExercise.examples[0].output}` : "Entree: 2 3 -> Sortie: 5"}
+              </pre>
+              <p className="mt-2 text-xs text-zinc-500">Contraintes : {loadedExercise?.constraints[0] ?? "-1000 ≤ a,b ≤ 1000"}</p>
+              {loadedExercise?.concepts?.length ? <p className="mt-1 text-xs text-zinc-500">Concepts: {loadedExercise.concepts.join(", ")}</p> : null}
+              <p className="mt-1 text-xs text-zinc-500">{loadedExercise?.ioSpec ?? ""}</p>
             </div>
           </div>
           <div className="rounded-2xl border border-black/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
