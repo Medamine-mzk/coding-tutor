@@ -66,7 +66,7 @@ describe("cannedFallback", () => {
     const ctx = fakeCtx({ lastRunResult: { stderr: "SyntaxError: invalid syntax", exitCode: 1 } });
     expect(cannedFallback(1, "fr", ctx)).toMatch(/erreur|SyntaxError/i);
     expect(cannedFallback(1, "ar", ctx)).toContain("خطأ");
-    expect(cannedFallback(1, "en", ctx)).toContain("error");
+    expect(cannedFallback(1, "en", ctx)).toMatch(/error/i);
   });
 
   it("describes wrong output symptom not fix", () => {

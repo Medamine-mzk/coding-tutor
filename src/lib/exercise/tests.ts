@@ -19,6 +19,49 @@ export function generateHiddenTests(exercise: Exercise): TestCase[] {
   const hidden: TestCase[] = [];
   const stmt = exercise.statement.toLowerCase();
 
+  // Vitesse-specific hidden tests (km/min -> m/s with conversion)
+  if (stmt.includes("vitesse")) {
+    hidden.push(
+      {
+        id: `t_hid_${nanoid()}`,
+        input: "0\n1",
+        stdin: ["0", "1"],
+        expected: "0",
+        kind: "stdout",
+        hidden: true,
+        category: "edge case with zero distance",
+      },
+      {
+        id: `t_hid_${nanoid()}`,
+        input: "10\n0",
+        stdin: ["10", "0"],
+        expected: "0",
+        kind: "stdout",
+        hidden: true,
+        category: "edge case division by zero",
+      },
+      {
+        id: `t_hid_${nanoid()}`,
+        input: "1\n1",
+        stdin: ["1", "1"],
+        expected: "16.67",
+        kind: "stdout",
+        hidden: true,
+        category: "boundary 1km 1min",
+      },
+      {
+        id: `t_hid_${nanoid()}`,
+        input: "5\n2",
+        stdin: ["5", "2"],
+        expected: "41.67",
+        kind: "stdout",
+        hidden: true,
+        category: "normal case",
+      }
+    );
+    return hidden.slice(0, 4);
+  }
+
   // Generic edge cases for sum-like exercises
   if (stmt.includes("somme") || stmt.includes("sum") || stmt.includes("addition") || /a\s*\+\s*b/.test(stmt) || exercise.concepts.includes("loops") ) {
     // Empty / zero

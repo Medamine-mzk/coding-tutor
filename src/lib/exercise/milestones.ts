@@ -23,6 +23,24 @@ const BASE_MILESTONES: MilestoneDef[] = [
     hintSeeds: ["What should happen if the list is empty?", "Try n=0 or empty line"],
   },
   {
+    title: { fr: "Convertir les unités", ar: "تحويل الوحدات", en: "Convert units" },
+    successCriteria: "Convert km to m (×1000) and minutes to seconds (×60)",
+    hintSeeds: ["1 km = 1000 m", "1 min = 60 s", "distance_m = distance_km * 1000"],
+    when: (ex) => ex.statement.toLowerCase().includes("vitesse") && ex.statement.toLowerCase().includes("distance"),
+  },
+  {
+    title: { fr: "Calculer la vitesse", ar: "حساب السرعة", en: "Calculate speed" },
+    successCriteria: "vitesse = distance_m / temps_s",
+    hintSeeds: ["vitesse = distance / temps", "Que vaut distance/temps après conversion ?"],
+    when: (ex) => ex.statement.toLowerCase().includes("vitesse"),
+  },
+  {
+    title: { fr: "Gérer la division par zéro", ar: "معالجة القسمة على الصفر", en: "Handle division by zero" },
+    successCriteria: "If temps == 0, handle without crash (print 0 or message)",
+    hintSeeds: ["Que faire si temps = 0 ?", "if temps_min == 0: print(0)"],
+    when: (ex) => ex.statement.toLowerCase().includes("vitesse") && ex.statement.toLowerCase().includes("temps"),
+  },
+  {
     title: { fr: "Initialiser l'accumulateur", ar: "تهيئة المجمّع", en: "Initialize the accumulator" },
     successCriteria: "Variable for result/sum/count initialized correctly",
     hintSeeds: ["Think about starting value for sum vs product", "Where should count start?"],

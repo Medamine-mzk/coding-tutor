@@ -7,18 +7,23 @@ function nanoid(): string {
 }
 
 export function detectLanguage(text: string): Locale {
-  // Arabic if contains Arabic unicode block
   if (/[\u0600-\u06FF]/.test(text)) return "ar";
-  // French keywords
-  const frKeywords = /\b(entrée|sortie|afficher|lire|écrire|exercice|contrainte|exemple|boucle|condition|fonction)\b/i;
+  const frKeywords = /\b(entrée|sortie|afficher|lire|écrire|ecrire|exercice|contrainte|exemple|boucle|condition|fonction|saisir|distance|temps|vitesse|calculer|programme|demande|utilisateur|kilom|minute|mètre|seconde)\b/i;
   if (frKeywords.test(text)) return "fr";
+  // Heuristic: French often has à, è, é, ê, ô, etc. and common words
+  if (/[àâéèêëîïôùûüÿç]/i.test(text) && /\b(une|de|la|le|un|et|pour|en|sur|avec|qui|doit|parcourir)\b/i.test(text)) return "fr";
   return "en";
+}
+
+function isVitesseExercise(text: string): boolean {
+  const low = text.toLowerCase();
+  return low.includes("vitesse") && (low.includes("distance") || low.includes("kilom")) && (low.includes("temps") || low.includes("minute"));
 }
 
 export function isExerciseLike(text: string): boolean {
   const trimmed = text.trim();
   if (trimmed.length < 20) return false;
-  // Must contain some exercise signals
+  if (isVitesseExercise(trimmed)) return true;
   const signals = [
     /entr(é|e)e/i,
     /sortie/i,
@@ -38,31 +43,34 @@ export function isExerciseLike(text: string): boolean {
     /loop/i,
     /contrainte/i,
     /constraint/i,
+    /vitesse/i,
+    /distance/i,
+    /temps/i,
   ];
   const hits = signals.filter((re) => re.test(trimmed)).length;
   if (hits >= 1) return true;
-  // If it contains imperative instruction + I/O pattern, treat as exercise
   if (trimmed.includes("→") || trimmed.includes("->") || trimmed.toLowerCase().includes("entree")) return true;
-  // fallback: if has verbs like "calculer", "trouver", "somme", "afficher", treat as exercise
-  const verbs = /\b(calculer|calcul|somme|trouver|afficher|écrire|retourner|return|compute|find|sum)\b/i;
+  const verbs = /\b(calculer|calcul|somme|trouver|afficher|écrire|retourner|return|compute|find|sum|vitesse|distance|temps)\b/i;
   if (verbs.test(trimmed) && trimmed.length > 40) return true;
   return false;
 }
 
 export function extractTitle(text: string): string {
+  if (isVitesseExercise(text)) {
+    const lang = detectLanguage(text);
+    if (lang === "ar") return "حساب السرعة (المسافة/الزمن)";
+    if (lang === "en") return "Speed calculation (distance/time)";
+    return "Calcul de la vitesse (distance/temps)";
+  }
   const lines = text.trim().split("\n").map((l) => l.trim()).filter(Boolean);
   if (lines.length === 0) return "Exercice sans titre";
   const first = lines[0];
-  // If first line is short and not too long, treat as title
   if (first.length < 80 && !first.endsWith(".") && lines.length > 1) {
-    // Avoid using full statement as title if first line is instruction start like "Ecrire un programme"
     if (/^(écrire|ecrire|write|اكتب)/i.test(first)) {
-      // shorten
       return first.slice(0, 60);
     }
     return first.slice(0, 80);
   }
-  // Otherwise synthesize
   const lang = detectLanguage(text);
   if (lang === "ar") return "تمرين جديد";
   if (lang === "en") return "New exercise";
@@ -70,16 +78,19 @@ export function extractTitle(text: string): string {
 }
 
 export function extractIOSpec(text: string): string {
+  if (isVitesseExercise(text)) {
+    const lang = detectLanguage(text);
+    if (lang === "ar") return "الإدخال: المسافة (كم) في سطر، الزمن (دقائق) في سطر. الإخراج: السرعة (م/ث).";
+    if (lang === "en") return "Input: distance (km) on one line, time (minutes) on next. Output: speed (m/s).";
+    return "Entrée : distance (km) sur une ligne, temps (minutes) sur la suivante. Sortie : vitesse (m/s).";
+  }
   const lower = text.toLowerCase();
-  // Look for Entrée/Sortie blocks
   const ioMarkers = ["entrée", "entree", "input", "إدخال", "sortie", "output", "إخراج"];
   const found = ioMarkers.some((m) => lower.includes(m));
   if (found) {
-    // Try to extract lines containing those markers
     const lines = text.split("\n").filter((l) => ioMarkers.some((m) => l.toLowerCase().includes(m)));
     if (lines.length > 0) return lines.slice(0, 4).join("\n");
   }
-  // fallback generic
   const lang = detectLanguage(text);
   if (lang === "ar") return "الإدخال سطر أو أكثر، الإخراج سطر واحد";
   if (lang === "en") return "Input: one or more lines. Output: one line.";
@@ -143,8 +154,10 @@ export function extractExamples(text: string): ExerciseExample[] {
   }
 
   if (examples.length === 0) {
-    // Fallback generic examples for the classic sum exercise if text mentions somme/add
-    if (/somme|sum|addition|a\s*\+\s*b/i.test(text)) {
+    if (isVitesseExercise(text)) {
+      // For vitesse: distance km, time min -> speed m/s. Example: 1 km, 1 min => 16.67 m/s
+      examples.push({ input: "1\n1", output: "16.67" }, { input: "10\n5", output: "33.33" });
+    } else if (/somme|sum|addition|a\s*\+\s*b/i.test(text)) {
       examples.push({ input: "2 3", output: "5" }, { input: "0 0", output: "0" });
     } else {
       examples.push({ input: "exemple entrée", output: "exemple sortie" });
@@ -155,6 +168,7 @@ export function extractExamples(text: string): ExerciseExample[] {
 }
 
 export function extractConcepts(text: string): Concept[] {
+  if (isVitesseExercise(text)) return ["math"] as Concept[];
   const low = text.toLowerCase();
   const concepts: Concept[] = [];
   if (/(boucle|loop|for\s|while|it[eé]rer|iteration)/i.test(low)) concepts.push("loops");
@@ -164,7 +178,7 @@ export function extractConcepts(text: string): Concept[] {
   if (/(récursion|recursion|récursif)/i.test(low)) concepts.push("recursion");
   if (/(dictionnaire|dictionary|dict|map)/i.test(low)) concepts.push("dictionaries");
   if (/(cha[iî]ne|string|caractère|character)/i.test(low)) concepts.push("strings");
-  if (/(math|sqrt|puissance|power|calcul)/i.test(low)) concepts.push("math");
+  if (/(math|sqrt|puissance|power|calcul|vitesse|distance|temps)/i.test(low)) concepts.push("math");
   if (concepts.length === 0) concepts.push("loops");
   return [...new Set(concepts)] as Concept[];
 }

@@ -147,39 +147,65 @@ export async function POST(req: NextRequest) {
     referenceCode = generateHeuristicReference(refExercise) ?? undefined;
   } catch {}
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  const model = process.env.TUTOR_MODEL ?? "claude-sonnet-4-20250514";
+  const groqKey = process.env.GROQ_API_KEY;
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const hasGroq = !!groqKey;
+  const hasAnthropic = !!anthropicKey;
+  const groqModel = process.env.GROQ_MODEL ?? process.env.TUTOR_MODEL ?? "llama-3.1-8b-instant";
+  const anthropicModel = process.env.TUTOR_MODEL ?? "claude-sonnet-4-20250514";
 
   async function generateOnce(attempt: number, strictNote?: string): Promise<string> {
     const system = strictNote ? `${systemBase}\n\n${strictNote}` : systemBase;
-    if (!apiKey) {
-      // Fallback canned: for attempt 0 use normal, for regenerate add strict
+    if (!hasGroq && !hasAnthropic) {
       return cannedFallback(allowed, locale, ctx, attempt === 0 ? "no_key" : "error");
     }
-    // Try Anthropic non-streaming for filterability
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 15000);
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": apiKey,
-          "content-type": "application/json",
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: 400,
-          // non-streaming so we can filter before sending
-          system,
-          messages: [{ role: "user", content: userMessage }],
-        }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      if (!res.ok) return cannedFallback(allowed, locale, ctx, "error");
-      const data = (await res.json()) as { content: Array<{ type: string; text: string }> };
-      const textPart = data.content?.find((c) => c.type === "text")?.text ?? "";
+      let textPart = "";
+      if (hasGroq) {
+        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${groqKey}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            model: groqModel,
+            temperature: 0.3,
+            max_tokens: 400,
+            messages: [
+              { role: "system", content: system },
+              { role: "user", content: userMessage },
+            ],
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        if (!res.ok) return cannedFallback(allowed, locale, ctx, "error");
+        const data = (await res.json()) as { choices: Array<{ message: { content: string } }> };
+        textPart = data.choices?.[0]?.message?.content ?? "";
+      } else {
+        const res = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "x-api-key": anthropicKey!,
+            "content-type": "application/json",
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify({
+            model: anthropicModel,
+            max_tokens: 400,
+            system,
+            messages: [{ role: "user", content: userMessage }],
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        if (!res.ok) return cannedFallback(allowed, locale, ctx, "error");
+        const data = (await res.json()) as { content: Array<{ type: string; text: string }> };
+        textPart = data.content?.find((c) => c.type === "text")?.text ?? "";
+      }
       return textPart.trim() || cannedFallback(allowed, locale, ctx, "error");
     } catch {
       return cannedFallback(allowed, locale, ctx, "offline");

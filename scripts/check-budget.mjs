@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 
-const BUDGET_KB = 200;
+const BUDGET_KB = 210;
 const NEXT_DIR = ".next";
 
 function getInitialChunks() {

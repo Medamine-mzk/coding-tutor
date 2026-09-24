@@ -11,6 +11,8 @@ import { useI18n } from "@/lib/i18n";
 import { PythonRunner } from "@/lib/runners/PythonRunner";
 import type { RunResult, TestCase } from "@/lib/runners/LanguageRunner";
 import { evaluateMilestones } from "@/lib/exercise/milestoneCheck";
+import { generateSkeleton } from "@/lib/exercise/skeleton";
+import { buildExerciseFromHeuristics } from "@/lib/exercise/parser";
 
 const DEFAULT_CODE = `# Exemple - affiche la somme de deux nombres
 a = int(input("a: "))
@@ -32,7 +34,7 @@ export function WorkspaceClient() {
   const [errorHint, setErrorHint] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"exercise" | "editor" | "tutor">("editor");
   const [largePasteNotice, setLargePasteNotice] = useState<string | null>(null);
-  const [loadedExercise, setLoadedExercise] = useState<null | { id: string; title: string; statement: string; ioSpec: string; constraints: string[]; examples: Array<{ input: string; output: string }>; concepts: string[]; difficulty: number; visibleTests?: TestCase[]; hiddenTests?: TestCase[]; milestones?: Array<{ id: string; exerciseId: string; order: number; title: string; successCriteria: string; hintSeeds: string[] }> }>(null);
+  const [loadedExercise, setLoadedExercise] = useState<null | { id: string; title: string; statement: string; ioSpec: string; constraints: string[]; examples: Array<{ input: string; output: string }>; concepts: string[]; difficulty: number; uiLocale?: string; visibleTests?: TestCase[]; hiddenTests?: TestCase[]; milestones?: Array<{ id: string; exerciseId: string; order: number; title: string; successCriteria: string; hintSeeds: string[] }> }>(null);
 
   const runner = useMemo(() => new PythonRunner(), []);
 
@@ -40,11 +42,34 @@ export function WorkspaceClient() {
     try {
       const raw = localStorage.getItem("currentExercise");
       if (raw) {
-        const parsed = JSON.parse(raw) as typeof loadedExercise;
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate from localStorage once
+        const parsed = JSON.parse(raw) as typeof loadedExercise & { statement?: string; title?: string };
+        // Fix for ex_h308z92 and similar vitesse exercises that were parsed with generic fallback (title New exercise)
+        const stmt = parsed?.statement ?? "";
+        const isGenericTitle = parsed?.title === "New exercise" || parsed?.title === "Nouvel exercice" || parsed?.title === "Exercice sans titre" || parsed?.title === "New exercise";
+        const isVitesse = stmt.toLowerCase().includes("vitesse") && stmt.toLowerCase().includes("distance");
+        if (isGenericTitle && isVitesse) {
+          const rebuilt = buildExerciseFromHeuristics(stmt, "typed", (parsed as unknown as { uiLocale?: string })?.uiLocale as never);
+          rebuilt.id = parsed?.id ?? rebuilt.id;
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate and fix corrupted exercise
+          setLoadedExercise(rebuilt as typeof loadedExercise);
+          localStorage.setItem("currentExercise", JSON.stringify(rebuilt));
+          if (code === DEFAULT_CODE || code.includes("a = int(input")) {
+            setCode(generateSkeleton(rebuilt));
+          }
+          return;
+        }
         setLoadedExercise(parsed);
+        if (parsed && (code === DEFAULT_CODE || code.includes('a = int(input("a: "))'))) {
+          try {
+            const skeleton = generateSkeleton(parsed as unknown as import("@/lib/exercise/types").Exercise);
+            if (skeleton.trim() !== code.trim()) {
+              setCode(skeleton);
+            }
+          } catch {}
+        }
       }
     } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

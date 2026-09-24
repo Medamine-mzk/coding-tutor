@@ -79,21 +79,64 @@ export function cannedFallback(
     return "Trop de requêtes. Réessaie dans une minute.";
   }
 
+  const isVitesse = ctx.exercise.statement.toLowerCase().includes("vitesse");
   const lvl = allowedLevel;
+
+  // Contextual: syntax errors — pinpoint line and kind, don't rewrite
   if (ctx.lastRunResult?.stderr) {
-    const err = ctx.lastRunResult.stderr.slice(0, 200);
-    // Don't rewrite code, just describe
-    if (locale === "ar") return `أرى خطأ: ${err.split("\n")[0].slice(0, 80)}. ما السطر الذي يشير إليه؟ ماذا يعني نوع الخطأ؟`;
-    if (locale === "en") return `I see an error: ${err.split("\n")[0].slice(0, 80)}. Which line does it point to? What does this error type mean?`;
-    return `Je vois une erreur : ${err.split("\n")[0].slice(0, 80)}. À quelle ligne pointe-t-elle ? Que signifie ce type d'erreur ?`;
+    const errFull = ctx.lastRunResult.stderr;
+    const firstLine = errFull.split("\n").find((l) => l.includes("SyntaxError") || l.includes("NameError") || l.includes("EOFError") || l.trim().startsWith("File")) ?? errFull.split("\n")[0];
+    // Extract line number if present: `line 4` or `File "<exec>", line 4`
+    const lineMatch = errFull.match(/line (\d+)/);
+    const lineInfo = lineMatch ? ` (ligne ${lineMatch[1]})` : "";
+    if (errFull.includes("SyntaxError") && errFull.includes("was never closed")) {
+      const snippet = errFull.includes("print(a ( b)") ? "print(a ( b) — il manque un opérateur (+, -, *, /) entre a et b" : errFull.slice(0, 120);
+      if (locale === "ar") return `خطأ صياغي${lineInfo}: ${snippet.slice(0, 80)}. هل نسيت عاملاً بين المتغيرين؟`;
+      if (locale === "en") return `SyntaxError${lineInfo}: ${snippet.slice(0, 80)}. Did you forget an operator between the variables?`;
+      return `Erreur de syntaxe${lineInfo} : ${snippet.slice(0, 80)}. As-tu oublié un opérateur (+, -, *, /) entre les variables ?`;
+    }
+    if (errFull.includes("SyntaxError")) {
+      const msg = errFull.match(/SyntaxError: (.+)/)?.[1]?.slice(0, 60) ?? firstLine.slice(0, 80);
+      if (locale === "ar") return `خطأ صياغي${lineInfo}: ${msg}. راجع الأقواس والنقطتين.`;
+      if (locale === "en") return `SyntaxError${lineInfo}: ${msg}. Check brackets and colons.`;
+      return `Erreur de syntaxe${lineInfo} : ${msg}. Vérifie les parenthèses et les deux-points.`;
+    }
+    if (errFull.includes("NameError")) {
+      const name = errFull.match(/name '(\w+)'/)?.[1] ?? "";
+      if (locale === "ar") return `NameError${lineInfo}: المتغير '${name}' غير معرّف. هل كتبته بشكل صحيح؟`;
+      if (locale === "en") return `NameError${lineInfo}: '${name}' is not defined. Did you spell it correctly?`;
+      return `NameError${lineInfo} : '${name}' n'est pas défini. L'as-tu bien orthographié ?`;
+    }
+    const err = errFull.slice(0, 200);
+    if (locale === "ar") return `أرى خطأ${lineInfo}: ${err.split("\n")[0].slice(0, 80)}. ما السطر الذي يشير إليه؟`;
+    if (locale === "en") return `I see an error${lineInfo}: ${err.split("\n")[0].slice(0, 80)}. Which line does it point to?`;
+    return `Je vois une erreur${lineInfo} : ${err.split("\n")[0].slice(0, 80)}. À quelle ligne pointe-t-elle ?`;
   }
   if (ctx.testReport && ctx.testReport.failed > 0) {
     const failed = ctx.testReport.results.filter((r) => !r.passed)[0];
+    if (isVitesse) {
+      if (locale === "ar") return `النتيجة غير مطابقة لـ ${failed?.testId ?? "اختبار"} (${failed?.message?.slice(0, 40) ?? ""}). هل حوّلت كم→م (×1000) ودقائق→ثواني (×60) قبل القسمة؟`;
+      if (locale === "en") return `Output mismatch for ${failed?.testId ?? "a test"}. Did you convert km→m (×1000) and min→s (×60) before dividing?`;
+      return `La sortie ne correspond pas à ${failed?.testId ?? "un test"}. As-tu converti km→m (×1000) et minutes→secondes (×60) avant de diviser ?`;
+    }
     if (locale === "ar") return `النتيجة غير مطابقة لـ ${failed?.testId ?? "اختبار"}. ما الذي ينقص في الخرج الحالي مقارنة بالمتوقع؟`;
     if (locale === "en") return `The output does not match ${failed?.testId ?? "a test"}. What is missing or extra in your current output?`;
     return `La sortie ne correspond pas à ${failed?.testId ?? "un test"}. Qu'est-ce qui manque ou est en trop dans ta sortie actuelle ?`;
   }
-  // Generic hint by level
+
+  // Contextual hints per exercise family
+  if (isVitesse) {
+    const vitesseHints: Record<HintLevel, Record<string, string>> = {
+      0: { fr: "Peux-tu reformuler : distance en km, temps en minutes → vitesse en m/s ?", ar: "أعد صياغة: مسافة بالكم، زمن بالدقائق → سرعة بالم/ث؟", en: "Can you restate: distance km, time minutes → speed m/s?" },
+      1: { fr: "Combien vaut 1 km en mètres ? Et 1 minute en secondes ?", ar: "كم يساوي 1 كم بالمتر؟ و1 دقيقة بالثواني؟", en: "How much is 1 km in meters? And 1 minute in seconds?" },
+      2: { fr: "Pense à convertir : distance_m = distance_km * 1000 et temps_s = temps_min * 60.", ar: "فكر في التحويل: المسافة بالمتر = الكم×1000 والزمن بالثواني = الدقائق×60.", en: "Think converting: distance_m = km*1000 and time_s = min*60." },
+      3: { fr: "Vérifie la formule autour de la division : vitesse = distance_m / temps_s. Que se passe-t-il si temps = 0 ?", ar: "تحقق من القسمة: السرعة = المسافة/الزمن. ماذا لو الزمن 0؟", en: "Check the division: speed = distance_m / time_s. What if time = 0?" },
+      4: { fr: "Micro-exemple différent : si distance=2 km et temps=1 min, distance_m=2000, temps_s=60 → vitesse≈33.33 m/s. Adapte l'idée.", ar: "مثال صغير: مسافة 2 كم وزمن 1 د = 2000م/60ث≈33.33.", en: "Tiny analogue: 2 km, 1 min → 2000m/60s≈33.33 m/s. Adapt the idea." },
+      5: { fr: "# Squelette vitesse\n# TODO: lire distance_km\n# TODO: lire temps_min\n# TODO: convertir en m et s\n# TODO: gérer temps == 0\n# TODO: calculer et afficher vitesse", ar: "# هيكل السرعة\n# TODO: قراءة المسافة\n# TODO: قراءة الزمن\n# TODO: التحويل\n# TODO: الحساب والعرض", en: "# Speed skeleton\n# TODO: read distance_km\n# TODO: read time_min\n# TODO: convert units\n# TODO: handle time==0\n# TODO: compute and print speed" },
+    };
+    return vitesseHints[lvl][locale] ?? vitesseHints[lvl].fr;
+  }
+
   const byLevel: Record<HintLevel, Record<string, string>> = {
     0: { fr: "Peux-tu reformuler l'exercice avec les entrées et sorties attendues ?", ar: "هل يمكنك إعادة صياغة التمرين مع المدخلات والمخرجات المتوقعة؟", en: "Can you restate the problem with its inputs and expected outputs?" },
     1: { fr: "Que devrait-il se passer si la liste est vide ?", ar: "ماذا يجب أن يحدث إذا كانت القائمة فارغة؟", en: "What should happen if the list is empty?" },

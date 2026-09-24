@@ -28,14 +28,19 @@ async function readSSE(res: Response): Promise<string> {
 }
 
 describe("tutor anti-leak integration — regeneration", () => {
-  const origKey = process.env.ANTHROPIC_API_KEY;
+  const origAnthropic = process.env.ANTHROPIC_API_KEY;
+  const origGroq = process.env.GROQ_API_KEY;
   beforeEach(() => {
     clearBlockedLog();
     vi.restoreAllMocks();
+    // Ensure Groq does not interfere — these tests specifically mock Anthropic
+    delete process.env.GROQ_API_KEY;
   });
   afterEach(() => {
-    if (origKey) process.env.ANTHROPIC_API_KEY = origKey;
+    if (origAnthropic) process.env.ANTHROPIC_API_KEY = origAnthropic;
     else delete process.env.ANTHROPIC_API_KEY;
+    if (origGroq) process.env.GROQ_API_KEY = origGroq;
+    else delete process.env.GROQ_API_KEY;
     vi.restoreAllMocks();
     clearBlockedLog();
   });

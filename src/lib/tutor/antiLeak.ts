@@ -49,15 +49,6 @@ function looksLikeSkeleton(code: string): boolean {
   return /#\s*TODO|TODO|fill the blank|à compléter|اكمل/i.test(code);
 }
 
-function looksLikeSolution(code: string): boolean {
-  // Heuristic: contains print + input handling + loop or solve definition without TODO
-  const hasPrint = /print\s*\(/.test(code);
-  const hasInput = /input\s*\(/.test(code) || /sys\.stdin/.test(code);
-  const hasLogic = /for\s|while\s|def\s|if\s|return/.test(code);
-  const isSkeleton = looksLikeSkeleton(code);
-  return hasPrint && (hasInput || hasLogic) && !isSkeleton;
-}
-
 export async function wouldPassAllTests(
   tutorBlocks: string[],
   studentCode: string,
@@ -79,10 +70,7 @@ export async function wouldPassAllTests(
   candidates.push([...tutorBlocks, studentCode].join("\n"));
 
   for (const candidate of candidates) {
-    // Skip skeletons — they won't pass, not a leak by this check
     if (looksLikeSkeleton(candidate)) continue;
-    // Must look like a solution to be worth running
-    if (!looksLikeSolution(candidate) && candidate.split("\n").length < 4) continue;
 
     let allPassed = true;
     for (const tc of tests) {

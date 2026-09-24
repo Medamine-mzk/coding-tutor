@@ -22,6 +22,24 @@ export function generateHeuristicReference(exercise: Exercise): string | null {
 `;
   }
 
+  // Vitesse = distance / temps with unit conversion (km->m, min->s)
+  if (stmt.includes("vitesse") && (stmt.includes("distance") || stmt.includes("kilom")) && (stmt.includes("temps") || stmt.includes("minute"))) {
+    return `distance_km = float(input().strip() or 0)
+temps_min = float(input().strip() or 0)
+if temps_min == 0:
+    print(0)
+else:
+    distance_m = distance_km * 1000
+    temps_s = temps_min * 60
+    vitesse = distance_m / temps_s
+    # Format: if integer, print as int, else 2 decimals
+    if vitesse.is_integer():
+        print(int(vitesse))
+    else:
+        print(f"{vitesse:.2f}")
+`;
+  }
+
   // Sum of two numbers is the most common starter
   if (stmt.includes("somme") || stmt.includes("sum") || (stmt.includes("deux") && stmt.includes("entier")) || stmt.includes("addition")) {
     return `import sys
@@ -41,40 +59,65 @@ if __name__ == "__main__":
 }
 
 export async function generateReferenceSolutionLLM(exercise: Exercise): Promise<string | null> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return generateHeuristicReference(exercise);
+  const groqKey = process.env.GROQ_API_KEY;
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const hasGroq = !!groqKey;
+  const hasAnthropic = !!anthropicKey;
+  if (!hasGroq && !hasAnthropic) return generateHeuristicReference(exercise);
 
-  const model = process.env.TUTOR_MODEL ?? process.env.PARSE_MODEL ?? "claude-sonnet-4-20250514";
+  const examplesStr = exercise.examples.map((e) => `Input: ${e.input} -> Output: ${e.output}`).join("\n");
+  const system =
+    "You are a reference solution generator for a Python coding tutor. Given an exercise title, statement, and examples, return ONLY a correct Python solution that reads from stdin and prints to stdout (or defines the required function). Keep it short and correct. Never include explanation, only code in a ```python block.";
+  const userContent = `Title: ${exercise.title}\nStatement: ${exercise.statement}\nIO: ${exercise.ioSpec}\nConstraints: ${exercise.constraints.join("; ")}\nExamples:\n${examplesStr}\nConcepts: ${exercise.concepts.join(", ")}\n\nReturn only the Python code.`;
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
 
   try {
-    const examplesStr = exercise.examples.map((e) => `Input: ${e.input} -> Output: ${e.output}`).join("\n");
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "content-type": "application/json",
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 1500,
-        system:
-          "You are a reference solution generator for a Python coding tutor. Given an exercise title, statement, and examples, return ONLY a correct Python solution that reads from stdin and prints to stdout (or defines the required function). Keep it short and correct. Never include explanation, only code in a ```python block.",
-        messages: [
-          {
-            role: "user",
-            content: `Title: ${exercise.title}\nStatement: ${exercise.statement}\nIO: ${exercise.ioSpec}\nConstraints: ${exercise.constraints.join("; ")}\nExamples:\n${examplesStr}\nConcepts: ${exercise.concepts.join(", ")}\n\nReturn only the Python code.`,
-          },
-        ],
-      }),
-      signal: controller.signal,
-    });
-
-    if (!res.ok) throw new Error(`Anthropic ${res.status}`);
-    const data = (await res.json()) as { content: Array<{ type: string; text: string }> };
-    const textPart = data.content?.find((c) => c.type === "text")?.text ?? "";
+    let textPart = "";
+    if (hasGroq) {
+      const groqModel = process.env.GROQ_MODEL ?? process.env.TUTOR_MODEL ?? "llama-3.1-8b-instant";
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${groqKey}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: groqModel,
+          temperature: 0.2,
+          max_tokens: 1500,
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: userContent },
+          ],
+        }),
+        signal: controller.signal,
+      });
+      if (!res.ok) throw new Error(`Groq ${res.status}`);
+      const data = (await res.json()) as { choices: Array<{ message: { content: string } }> };
+      textPart = data.choices?.[0]?.message?.content ?? "";
+    } else {
+      const model = process.env.TUTOR_MODEL ?? process.env.PARSE_MODEL ?? "claude-sonnet-4-20250514";
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": anthropicKey!,
+          "content-type": "application/json",
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 1500,
+          system,
+          messages: [{ role: "user", content: userContent }],
+        }),
+        signal: controller.signal,
+      });
+      if (!res.ok) throw new Error(`Anthropic ${res.status}`);
+      const data = (await res.json()) as { content: Array<{ type: string; text: string }> };
+      textPart = data.content?.find((c) => c.type === "text")?.text ?? "";
+    }
     const block = textPart.match(/```python([\s\S]*?)```/);
     if (block) return block[1].trim();
     const fallback = textPart.match(/```([\s\S]*?)```/);
