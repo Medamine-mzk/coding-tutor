@@ -1,7 +1,7 @@
 "use client";
 
 import { useI18n } from "@/lib/i18n";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ExerciseConfirm } from "./ExerciseConfirm";
@@ -16,6 +16,20 @@ export function LandingClient() {
   const [error, setError] = useState<string | null>(null);
   const [clarification, setClarification] = useState<string | null>(null);
   const [exercise, setExercise] = useState<Exercise | null>(null);
+  const confirmRef = useRef<HTMLElement>(null);
+
+  // Scroll to confirmation after exercise is set — useEffect ensures DOM has rendered
+  // (previous queueMicrotask could run before React flushed the conditional <section id="confirm">)
+  useEffect(() => {
+    if (exercise) {
+      const t = setTimeout(() => {
+        // Prefer ref, fallback to id
+        if (confirmRef.current) confirmRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+        else document.getElementById("confirm")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 50);
+      return () => clearTimeout(t);
+    }
+  }, [exercise]);
 
   async function handleParse() {
     const text = exerciseText.trim();
@@ -44,8 +58,6 @@ export function LandingClient() {
       }
       if (data.exercise) {
         setExercise(data.exercise);
-        // Scroll to confirm card
-        queueMicrotask(() => document.getElementById("confirm")?.scrollIntoView({ behavior: "smooth" }));
       } else {
         setError("Réponse inattendue du serveur");
       }
@@ -123,7 +135,6 @@ export function LandingClient() {
                 setError(null);
                 setClarification(null);
                 setExercise(ex);
-                queueMicrotask(() => document.getElementById("confirm")?.scrollIntoView({ behavior: "smooth" }));
               }}
               onError={(msg) => {
                 setError(msg);
@@ -145,7 +156,7 @@ export function LandingClient() {
       </section>
 
       {exercise ? (
-        <section id="confirm" className="mx-auto w-full max-w-6xl px-4 pb-12 sm:px-6">
+        <section ref={confirmRef as unknown as React.RefObject<HTMLDivElement>} id="confirm" className="mx-auto w-full max-w-6xl px-4 pb-12 sm:px-6 scroll-mt-6">
           <ExerciseConfirm
             exercise={exercise}
             onConfirm={handleConfirm}

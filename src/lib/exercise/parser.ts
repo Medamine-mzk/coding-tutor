@@ -147,21 +147,83 @@ export function extractConstraints(text: string): string[] {
 
 export function extractExamples(text: string): ExerciseExample[] {
   const examples: ExerciseExample[] = [];
-  // Pattern 1: Entrée: ... → Sortie: ...
-  // Pattern 2: Input: ... Output: ...
-  // Pattern 3: Exemple: Entrée: 2 3 Sortie: 5
   const normalized = text.replace(/\r/g, "");
 
-  // Try to find pairs
-  // Example formats:
-  // Entrée: 2 3
-  // Sortie: 5
-  // Or Entrée: 2 3 -> Sortie: 5
+  // Pattern 1: Entrée: ... → Sortie: ...  / Input: ... -> Output: ... on same line
   const pairRe = /(?:entr[ée]e|input|إدخال)\s*[:：]\s*([^\n]+)\s*(?:->|→|;|\n)\s*(?:sortie|output|إخراج)\s*[:：]\s*([^\n]+)/gi;
   let m: RegExpExecArray | null;
   while ((m = pairRe.exec(normalized)) !== null) {
     examples.push({ input: m[1].trim(), output: m[2].trim() });
     if (examples.length >= 3) break;
+  }
+
+  if (examples.length === 0) {
+    // Pattern 1b: block format — Input : on its own line, values on following lines, then Output :
+    // Handles the user's case:
+    // Input :
+    // 5
+    // 2
+    // 7
+    // Output :
+    // Max = 15 ...
+    const lines = normalized.split("\n").map((l) => l.trim());
+    const isInputHeader = (l: string) => /^\s*(input|entr[ée]e|entree|إدخال)\s*[:：]?\s*$/i.test(l) || /^\s*(input|entr[ée]e|entree|إدخال)\s*[:：]\s+.+/i.test(l);
+    const isOutputHeader = (l: string) => /^\s*(output|sortie|إخراج)\s*[:：]?\s*$/i.test(l) || /^\s*(output|sortie|إخراج)\s*[:：]\s+.+/i.test(l);
+    // Try to find Input block followed by Output block
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (!isInputHeader(line)) continue;
+      // Extract inline content after colon if any
+      let inputInline = "";
+      const colonIdx = line.indexOf(":");
+      const altColonIdx = line.indexOf("：");
+      const ci = colonIdx !== -1 ? colonIdx : altColonIdx;
+      if (ci !== -1 && ci < line.length - 1) inputInline = line.slice(ci + 1).trim();
+      const inputLines: string[] = [];
+      if (inputInline) inputLines.push(inputInline);
+      let j = i + 1;
+      // Collect until Output header
+      while (j < lines.length && !isOutputHeader(lines[j]) && lines[j] !== "") {
+        // Stop if we hit another Input header (next example)
+        if (isInputHeader(lines[j])) break;
+        inputLines.push(lines[j]);
+        j++;
+        // Also handle empty line as separator — skip but don't break
+        if (j < lines.length && lines[j] === "") {
+          // Peek ahead: if next is Output, break
+          let k = j + 1;
+          while (k < lines.length && lines[k] === "") k++;
+          if (k < lines.length && isOutputHeader(lines[k])) break;
+        }
+      }
+      // Now find Output header at or after j
+      let outIdx = -1;
+      for (let k = j; k < lines.length; k++) {
+        if (isOutputHeader(lines[k])) { outIdx = k; break; }
+      }
+      if (outIdx === -1) continue;
+      const outLine = lines[outIdx];
+      let outputInline = "";
+      const oColon = outLine.indexOf(":");
+      const oAlt = outLine.indexOf("：");
+      const oci = oColon !== -1 ? oColon : oAlt;
+      if (oci !== -1 && oci < outLine.length - 1) outputInline = outLine.slice(oci + 1).trim();
+      const outputLines: string[] = [];
+      if (outputInline) outputLines.push(outputInline);
+      let k = outIdx + 1;
+      while (k < lines.length && lines[k] !== "" && !isInputHeader(lines[k])) {
+        outputLines.push(lines[k]);
+        k++;
+        if (k < lines.length && lines[k] === "") break;
+      }
+      const input = inputLines.join("\n").trim();
+      const output = outputLines.join("\n").trim();
+      if (input && output) {
+        examples.push({ input, output });
+        i = k - 1;
+        if (examples.length >= 3) break;
+      }
+    }
   }
 
   if (examples.length === 0) {
