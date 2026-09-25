@@ -19,7 +19,10 @@ export function LandingClient() {
 
   async function handleParse() {
     const text = exerciseText.trim();
-    if (!text) return;
+    if (!text) {
+      setError(locale === "ar" ? "الصق نص التمرين أولاً" : locale === "en" ? "Please paste the exercise text first" : "Colle d'abord l'énoncé de l'exercice");
+      return;
+    }
     setLoading(true);
     setError(null);
     setClarification(null);
@@ -97,6 +100,7 @@ export function LandingClient() {
               id="exercise"
               value={exerciseText}
               onChange={(e) => setExerciseText(e.target.value)}
+              onInput={(e) => setExerciseText((e.target as HTMLTextAreaElement).value)}
               placeholder={t("landing.pastePlaceholder")}
               rows={8}
               className="mt-4 w-full resize-none rounded-xl border border-black/10 bg-zinc-50 p-4 text-sm placeholder:text-zinc-400 focus:border-zinc-300 focus:bg-white focus:outline-none dark:border-white/10 dark:bg-zinc-800 dark:placeholder:text-zinc-500 dark:focus:border-zinc-700 dark:focus:bg-zinc-900"
@@ -105,9 +109,10 @@ export function LandingClient() {
             />
             <div className="mt-4 flex gap-3">
               <button
-                disabled={!exerciseText.trim() || loading}
+                disabled={loading}
                 onClick={handleParse}
                 data-testid="btn-parse"
+                title={!exerciseText.trim() ? "Colle d'abord l'énoncé" : undefined}
                 className="flex-1 rounded-full bg-emerald-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:disabled:bg-zinc-700"
               >
                 {loading ? "Analyse…" : t("landing.choosePython")}

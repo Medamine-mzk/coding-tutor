@@ -161,7 +161,7 @@ export function ExerciseConfirm({ exercise: initial, onConfirm, onCancel }: Prop
       </div>
 
       <div className="mt-6 flex flex-wrap gap-3">
-        <button onClick={handleConfirm} disabled={saving || !ex.title.trim() || !ex.statement.trim()} data-testid="btn-confirm" className="inline-flex h-11 items-center justify-center rounded-full bg-zinc-900 px-6 font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-white dark:text-zinc-900">
+        <button onClick={handleConfirm} disabled={saving} title={!ex.title.trim() || !ex.statement.trim() ? "Titre/énoncé vide" : undefined} data-testid="btn-confirm" className="inline-flex h-11 items-center justify-center rounded-full bg-zinc-900 px-6 font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-white dark:text-zinc-900">
           {saving ? "…" : locale === "ar" ? "ابدأ البرمجة →" : locale === "en" ? "Start coding →" : "Commencer à coder →"}
         </button>
         <button onClick={onCancel} data-testid="btn-cancel" className="inline-flex h-11 items-center justify-center rounded-full border border-black/10 px-6 font-medium hover:bg-zinc-50 dark:border-white/15 dark:hover:bg-zinc-800">
