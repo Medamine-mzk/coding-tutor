@@ -74,7 +74,60 @@ export async function POST(req: NextRequest) {
   // steps' goal/check server-side (exerciseService.toClientSteps) so devtools cannot
   // reveal the whole plan — fixes the exact leak the hint-ladder was built to prevent.
   const currentStepOrder = (body as { currentStepOrder?: number }).currentStepOrder ?? 1;
+  const wantsSSE = req.headers.get("accept")?.includes("text/event-stream") || (body as { stream?: boolean }).stream === true || req.nextUrl.searchParams.get("stream") === "1";
+
+  // Helper to build meta for JSON/SSE
+  const buildMeta = (result: unknown) => {
+    const r = result as { meta?: unknown; matchMethod?: string; canonical?: { id: string } };
+    return (r.meta as Record<string, unknown>) ?? { matchMethod: r.matchMethod ?? "new" };
+  };
+
   if (useCache) {
+    // SSE mode A+B: stream real progress events if client asks for text/event-stream
+    if (wantsSSE) {
+      const stream = new ReadableStream({
+        async start(controller) {
+          const enc = new TextEncoder();
+          const send = (event: string, data: unknown) => {
+            controller.enqueue(enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+          };
+          const onProgress = (ev: { stage: string; status: string; progress: number; mode?: string; provider?: string; label?: string }) => {
+            send("progress", ev);
+          };
+          try {
+            send("progress", { stage: "parse", status: "start", progress: 5, label: "Analyse de l'énoncé" });
+            const result = await createOrReuseExercise(trimmed, {
+              source: (source as "typed" | "upload" | "library") ?? "typed",
+              uiLocale: detectLanguage(trimmed),
+              neverCache,
+              currentStepOrder: Math.max(1, Math.min(7, currentStepOrder)),
+              onProgress,
+            } as unknown as Parameters<typeof createOrReuseExercise>[1]);
+            if ((result as { isExercise?: boolean }).isExercise === false) {
+              const r = result as { isExercise: false; clarification: string; detectedLanguage: string; meta?: unknown };
+              send("done", { isExercise: false, clarification: r.clarification, detectedLanguage: r.detectedLanguage, meta: r.meta ?? { parseMode: "heuristic" } });
+            } else {
+              const meta = buildMeta(result);
+              const r = result as { exercise: import("@/lib/exercise/types").Exercise; canonical?: { id: string }; matchMethod?: string };
+              send("done", { isExercise: true, exercise: r.exercise, canonicalId: r.canonical?.id, matchMethod: r.matchMethod ?? "new", meta });
+            }
+          } catch (e) {
+            send("error", { error: e instanceof Error ? e.message : String(e) });
+          } finally {
+            controller.close();
+          }
+        },
+      });
+      return new NextResponse(stream, {
+        headers: {
+          ...rateHeaders,
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+        },
+      });
+    }
+
     try {
       const result = await createOrReuseExercise(trimmed, {
         source: (source as "typed" | "upload" | "library") ?? "typed",
@@ -84,14 +137,15 @@ export async function POST(req: NextRequest) {
       } as unknown as Parameters<typeof createOrReuseExercise>[1]);
       // Strict 1-call can return isExercise:false (LLM says not an exercise, no heuristics fallback for that case)
       if ((result as { isExercise?: boolean }).isExercise === false) {
-        const r = result as { isExercise: false; clarification: string; detectedLanguage: string };
-        return NextResponse.json({ isExercise: false, clarification: r.clarification, detectedLanguage: r.detectedLanguage }, { status: 200, headers: rateHeaders });
+        const r = result as { isExercise: false; clarification: string; detectedLanguage: string; meta?: unknown };
+        return NextResponse.json({ isExercise: false, clarification: r.clarification, detectedLanguage: r.detectedLanguage, meta: r.meta ?? { parseMode: "heuristic" } }, { status: 200, headers: rateHeaders });
       }
       if ((result as { lowConfidence?: boolean }).lowConfidence) {
         console.warn("[parse] low-confidence exercise, logged for review", { matchMethod: (result as { matchMethod?: string }).matchMethod });
       }
+      const meta = buildMeta(result);
       return NextResponse.json(
-        { isExercise: true, exercise: (result as { exercise: import("@/lib/exercise/types").Exercise }).exercise, canonicalId: (result as { canonical?: { id: string } }).canonical?.id, matchMethod: (result as { matchMethod?: string }).matchMethod ?? "new" },
+        { isExercise: true, exercise: (result as { exercise: import("@/lib/exercise/types").Exercise }).exercise, canonicalId: (result as { canonical?: { id: string } }).canonical?.id, matchMethod: (result as { matchMethod?: string }).matchMethod ?? "new", meta },
         { status: 200, headers: rateHeaders }
       );
     } catch (e) {

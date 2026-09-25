@@ -187,8 +187,8 @@ export async function parseExerciseWithLLM(opts: LLMOptions): Promise<Exercise> 
 // or no keys, we fall back to heuristics (offline fallback) — manual only when
 // LLM unavailable, as requested.
 export type StrictParseResult =
-  | { isExercise: true; exercise: Exercise }
-  | { isExercise: false };
+  | { isExercise: true; exercise: Exercise; meta: { parseMode: "llm" | "heuristic"; provider?: string } }
+  | { isExercise: false; meta?: { parseMode: "llm" | "heuristic"; provider?: string } };
 
 export async function parseExerciseWithLLMStrict(opts: LLMOptions): Promise<StrictParseResult> {
   const hasLLM = !!process.env.GEMINI_API_KEY || !!process.env.GROQ_API_KEY || !!process.env.ANTHROPIC_API_KEY;
@@ -197,8 +197,8 @@ export async function parseExerciseWithLLMStrict(opts: LLMOptions): Promise<Stri
     // Use heuristics + isExerciseLike as offline fallback
     const { isExerciseLike } = await import("./parser");
     const isEx = isExerciseLike(opts.text);
-    if (!isEx) return { isExercise: false };
-    return { isExercise: true, exercise: buildExerciseFromHeuristics(opts.text, opts.source) };
+    if (!isEx) return { isExercise: false, meta: { parseMode: "heuristic" } };
+    return { isExercise: true, exercise: buildExerciseFromHeuristics(opts.text, opts.source), meta: { parseMode: "heuristic" } };
   }
 
   const sanitized = sanitizeForLLM(opts.text);
@@ -213,6 +213,7 @@ export async function parseExerciseWithLLMStrict(opts: LLMOptions): Promise<Stri
 
   try {
     let jsonStr = "";
+    let usedProvider: string | undefined;
     const geminiKey = process.env.GEMINI_API_KEY;
     const groqKey = process.env.GROQ_API_KEY;
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
@@ -223,6 +224,7 @@ export async function parseExerciseWithLLMStrict(opts: LLMOptions): Promise<Stri
     if (hasGemini) {
       try {
         jsonStr = await callGemini(systemPrompt, userPrompt, 2000);
+        if (jsonStr) usedProvider = "gemini";
       } catch (e) {
         console.warn("[strict parse] Gemini failed, falling back:", e instanceof Error ? e.message : String(e));
       }
@@ -247,6 +249,7 @@ export async function parseExerciseWithLLMStrict(opts: LLMOptions): Promise<Stri
       if (res.ok) {
         const data = (await res.json()) as { choices: Array<{ message: { content: string } }> };
         jsonStr = data.choices?.[0]?.message?.content ?? "";
+        if (jsonStr) usedProvider = "groq";
       }
     }
     if (!jsonStr && hasAnthropic) {
@@ -260,6 +263,7 @@ export async function parseExerciseWithLLMStrict(opts: LLMOptions): Promise<Stri
       if (res.ok) {
         const data = (await res.json()) as { content: Array<{ type: string; text: string }> };
         jsonStr = data.content?.find((c) => c.type === "text")?.text ?? "";
+        if (jsonStr) usedProvider = "anthropic";
       }
     }
     if (!jsonStr) throw new Error("No LLM response for strict parse");
@@ -281,7 +285,7 @@ export async function parseExerciseWithLLMStrict(opts: LLMOptions): Promise<Stri
     };
 
     if (!parsed.isExercise || !parsed.exercise) {
-      return { isExercise: false };
+      return { isExercise: false, meta: { parseMode: "llm", provider: usedProvider ?? "llm" } };
     }
 
     const lang = parsed.exercise.languageDetected as Exercise["uiLocale"];
@@ -298,12 +302,12 @@ export async function parseExerciseWithLLMStrict(opts: LLMOptions): Promise<Stri
       concepts: (parsed.exercise.concepts as Exercise["concepts"]) ?? base.concepts,
       uiLocale,
     };
-    return { isExercise: true, exercise };
+    return { isExercise: true, exercise, meta: { parseMode: "llm", provider: usedProvider } };
   } catch (e) {
     console.warn("[strict parse] fallback to heuristics:", e instanceof Error ? e.message : String(e));
     const { isExerciseLike } = await import("./parser");
-    if (!isExerciseLike(opts.text)) return { isExercise: false };
-    return { isExercise: true, exercise: buildExerciseFromHeuristics(opts.text, opts.source) };
+    if (!isExerciseLike(opts.text)) return { isExercise: false, meta: { parseMode: "heuristic" } };
+    return { isExercise: true, exercise: buildExerciseFromHeuristics(opts.text, opts.source), meta: { parseMode: "heuristic" } };
   } finally {
     clearTimeout(timer);
   }

@@ -16,20 +16,52 @@ export function LandingClient() {
   const [error, setError] = useState<string | null>(null);
   const [clarification, setClarification] = useState<string | null>(null);
   const [exercise, setExercise] = useState<Exercise | null>(null);
+  const [progress, setProgress] = useState<number>(0);
+  const [progressStage, setProgressStage] = useState<string>("");
+  const [progressMode, setProgressMode] = useState<"llm" | "heuristic" | "cache" | null>(null);
+  const [meta, setMeta] = useState<Record<string, unknown> | null>(null);
   const confirmRef = useRef<HTMLElement>(null);
 
   // Scroll to confirmation after exercise is set — useEffect ensures DOM has rendered
-  // (previous queueMicrotask could run before React flushed the conditional <section id="confirm">)
   useEffect(() => {
     if (exercise) {
       const t = setTimeout(() => {
-        // Prefer ref, fallback to id
         if (confirmRef.current) confirmRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
         else document.getElementById("confirm")?.scrollIntoView({ behavior: "smooth", block: "start" });
       }, 50);
       return () => clearTimeout(t);
     }
   }, [exercise]);
+
+  // Simulated progress (A) — advances while waiting for real SSE events (B)
+  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  function startSimulatedProgress() {
+    setProgress(5);
+    setProgressStage(locale === "ar" ? "Analyse de l'énoncé…" : locale === "en" ? "Parsing exercise…" : "Analyse de l'énoncé…");
+    setProgressMode(null);
+    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+    progressIntervalRef.current = setInterval(() => {
+      setProgress((p) => {
+        if (p < 30) return p + 4;
+        if (p < 65) return p + 2;
+        if (p < 92) return p + 1;
+        return p;
+      });
+    }, 300);
+  }
+  function stopSimulatedProgress(final: number = 100) {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+    setProgress(final);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+    };
+  }, []);
 
   async function handleParse() {
     const text = exerciseText.trim();
@@ -41,30 +73,140 @@ export function LandingClient() {
     setError(null);
     setClarification(null);
     setExercise(null);
+    setMeta(null);
+    startSimulatedProgress();
+
+    // Try SSE (B) for real-time stages, fallback to single JSON (A) if not supported
+    const trySSE = async (): Promise<boolean> => {
+      try {
+        const res = await fetch("/api/exercise/parse", {
+          method: "POST",
+          headers: { "content-type": "application/json", accept: "text/event-stream" },
+          body: JSON.stringify({ text, source: "typed", stream: true }),
+        });
+        const ct = res.headers.get("content-type") ?? "";
+        if (!ct.includes("text/event-stream")) return false;
+        if (!res.body) return false;
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let doneExercise: Exercise | null = null;
+        let doneMeta: Record<string, unknown> | null = null;
+        let isExFalse: { clarification: string; detectedLanguage: string } | null = null;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop() ?? "";
+          for (const part of parts) {
+            const lines = part.split("\n");
+            let event = "message";
+            let dataStr = "";
+            for (const line of lines) {
+              if (line.startsWith("event:")) event = line.slice(6).trim();
+              else if (line.startsWith("data:")) dataStr += line.slice(5).trim();
+            }
+            if (!dataStr) continue;
+            try {
+              const data = JSON.parse(dataStr) as Record<string, unknown>;
+              if (event === "progress") {
+                const ev = data as { stage: string; progress: number; mode?: string; label?: string };
+                if (typeof ev.progress === "number") setProgress(ev.progress);
+                if (ev.label) setProgressStage(ev.label as string);
+                if (ev.mode) setProgressMode(ev.mode as "llm" | "heuristic" | "cache");
+              } else if (event === "done") {
+                if ((data as { isExercise?: boolean }).isExercise === false) {
+                  isExFalse = data as unknown as { clarification: string; detectedLanguage: string };
+                } else {
+                  doneExercise = (data as { exercise: Exercise }).exercise;
+                  doneMeta = (data as { meta: Record<string, unknown> }).meta ?? null;
+                  if (doneMeta && (doneMeta as { parseMode?: string }).parseMode) {
+                    setProgressMode((doneMeta as { parseMode?: string }).parseMode as "llm" | "heuristic" | "cache");
+                  }
+                }
+              } else if (event === "error") {
+                throw new Error((data as { error?: string }).error ?? "SSE error");
+              }
+            } catch {}
+          }
+        }
+        if (isExFalse) {
+          setClarification(isExFalse.clarification ?? "Ce texte ne ressemble pas à un exercice.");
+          stopSimulatedProgress(100);
+          return true;
+        }
+        if (doneExercise) {
+          setMeta(doneMeta);
+          if (doneMeta && (doneMeta as { parseMode?: string }).parseMode) {
+            const pm = (doneMeta as { parseMode?: string }).parseMode as "llm" | "heuristic" | "cache";
+            setProgressMode(pm);
+            setProgressStage(
+              pm === "cache"
+                ? locale === "ar" ? "Cache — réutilisé" : locale === "en" ? "Cache — reused" : "Cache — réutilisé"
+                : pm === "llm"
+                  ? locale === "ar" ? "Terminé — LLM" : locale === "en" ? "Done — LLM" : "Terminé — LLM"
+                  : locale === "ar" ? "Terminé — local" : locale === "en" ? "Done — local" : "Terminé — local"
+            );
+          }
+          setExercise(doneExercise);
+          stopSimulatedProgress(100);
+          return true;
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    };
+
     try {
+      const sseOk = await trySSE();
+      if (sseOk) return;
+      // Fallback: single JSON (works offline, fast cache, or SSE not supported)
+      // Keep simulated progress running until response
       const res = await fetch("/api/exercise/parse", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ text, source: "typed" }),
       });
-      const data = await res.json() as { isExercise?: boolean; exercise?: Exercise; clarification?: string; error?: string; detail?: string };
+      const data = await res.json() as { isExercise?: boolean; exercise?: Exercise; clarification?: string; error?: string; detail?: string; meta?: Record<string, unknown> };
       if (!res.ok) {
         setError(data.error ?? "Erreur inconnue");
         return;
       }
       if (data.isExercise === false) {
         setClarification(data.clarification ?? "Ce texte ne ressemble pas à un exercice.");
+        setMeta(data.meta ?? { parseMode: "heuristic" });
+        setProgressMode("heuristic");
         return;
       }
       if (data.exercise) {
         setExercise(data.exercise);
+        const m = data.meta as { parseMode?: string } | undefined;
+        if (m?.parseMode) {
+          setMeta(m as Record<string, unknown>);
+          setProgressMode(m.parseMode as "llm" | "heuristic" | "cache");
+          setProgressStage(
+            m.parseMode === "cache"
+              ? locale === "ar" ? "Cache — réutilisé" : locale === "en" ? "Cache — reused" : "Cache — réutilisé"
+              : m.parseMode === "llm"
+                ? locale === "ar" ? "Terminé — LLM" : locale === "en" ? "Done — LLM" : "Terminé — LLM"
+                : locale === "ar" ? "Terminé — local" : locale === "en" ? "Done — local" : "Terminé — local"
+          );
+        }
       } else {
         setError("Réponse inattendue du serveur");
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      stopSimulatedProgress(100);
       setLoading(false);
+      // Hide bar after a short delay when done
+      setTimeout(() => {
+        setProgress(0);
+        setProgressStage("");
+      }, 2500);
     }
   }
 
@@ -130,6 +272,51 @@ export function LandingClient() {
                 {loading ? "Analyse…" : t("landing.choosePython")}
               </button>
             </div>
+            {/* Progression — A (simulé) + B (temps réel SSE) : montre LLM vs Local vs Cache */}
+            {(loading || progress > 0) && (
+              <div className="mt-3 space-y-1.5" aria-live="polite" data-testid="parse-progress">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium text-zinc-700 dark:text-zinc-300">
+                    {progressStage || (loading ? (locale === "ar" ? "Analyse…" : locale === "en" ? "Analyzing…" : "Analyse…") : "")}
+                  </span>
+                  <span className="tabular-nums text-zinc-500">{progress > 0 ? `${Math.round(progress)}%` : ""}</span>
+                </div>
+                <div role="progressbar" aria-valuenow={Math.round(progress)} aria-valuemin={0} aria-valuemax={100} className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${progressMode === "cache" ? "bg-sky-500" : progressMode === "llm" ? "bg-emerald-500" : progressMode === "heuristic" ? "bg-amber-500" : "bg-emerald-500"}`}
+                    style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+                  />
+                </div>
+                {progressMode && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <span
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ring-1 ring-inset ${
+                        progressMode === "llm"
+                          ? "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-900"
+                          : progressMode === "cache"
+                            ? "bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-950 dark:text-sky-300 dark:ring-sky-900"
+                            : "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:ring-amber-900"
+                      }`}
+                    >
+                      {progressMode === "llm" ? "LLM" : progressMode === "cache" ? "Cache" : "Local"}
+                    </span>
+                    <span className="text-zinc-500">
+                      {progressMode === "llm"
+                        ? locale === "ar" ? "IA distante" : locale === "en" ? "remote AI" : "IA distante"
+                        : progressMode === "cache"
+                          ? locale === "ar" ? "réutilisé" : locale === "en" ? "reused" : "réutilisé"
+                          : locale === "ar" ? "heuristique hors ligne" : locale === "en" ? "offline heuristic" : "heuristique hors ligne"}
+                    </span>
+                    {meta && (meta as { provider?: string }).provider && progressMode === "llm" ? (
+                      <span className="text-zinc-400">· {(meta as { provider?: string }).provider}</span>
+                    ) : null}
+                    {meta && (meta as { timings?: { totalMs?: number } }).timings?.totalMs ? (
+                      <span className="text-zinc-400">· {Math.round((meta as { timings: { totalMs: number } }).timings.totalMs)}ms</span>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            )}
             <FileUpload
               onSingle={(ex) => {
                 setError(null);
@@ -157,11 +344,7 @@ export function LandingClient() {
 
       {exercise ? (
         <section ref={confirmRef as unknown as React.RefObject<HTMLDivElement>} id="confirm" className="mx-auto w-full max-w-6xl px-4 pb-12 sm:px-6 scroll-mt-6">
-          <ExerciseConfirm
-            exercise={exercise}
-            onConfirm={handleConfirm}
-            onCancel={() => setExercise(null)}
-          />
+          <ExerciseConfirm exercise={exercise} meta={meta} onConfirm={handleConfirm} onCancel={() => setExercise(null)} />
         </section>
       ) : null}
 

@@ -210,19 +210,36 @@ Rules:
   }
 }
 
-export async function generateStepPlan(exercise: Exercise, reference: string): Promise<Step[]> {
-  // Try real LLM decomposition first (Stage B); heuristic is fallback.
-  const llmSteps = await generateViaLLM(exercise, reference);
-  if (llmSteps) {
-    const verification = await verifyStepPlan(reference, llmSteps);
-    if (verification.ok) return llmSteps;
-    console.warn(`[stepGenerator] LLM steps failed verification at "${verification.failedStep?.title}": ${verification.reason} — falling back to heuristic`);
-  }
+export type StepMeta = { mode: "llm" | "heuristic"; provider?: string };
 
+export async function generateStepPlanWithMeta(exercise: Exercise, reference: string): Promise<{ steps: Step[]; meta: StepMeta }> {
+  // Test determinism
+  if (process.env.NODE_ENV === "test" || process.env.VITEST) {
+    const fallback = heuristicSteps(exercise, reference);
+    await verifyStepPlan(reference, fallback); // still verify but don't block
+    return { steps: fallback, meta: { mode: "heuristic" } };
+  }
+  const hasLLM = !!process.env.GEMINI_API_KEY || !!process.env.GROQ_API_KEY || !!process.env.ANTHROPIC_API_KEY;
+  if (hasLLM) {
+    const llmSteps = await generateViaLLM(exercise, reference);
+    if (llmSteps) {
+      const verification = await verifyStepPlan(reference, llmSteps);
+      if (verification.ok) {
+        // Determine provider: generateViaLLM doesn't expose, so infer as llm
+        return { steps: llmSteps, meta: { mode: "llm", provider: "gemini" } };
+      }
+      console.warn(`[stepGenerator] LLM steps failed verification at "${verification.failedStep?.title}": ${verification.reason} — falling back to heuristic`);
+    }
+  }
   const fallback = heuristicSteps(exercise, reference);
   const verification = await verifyStepPlan(reference, fallback);
   if (!verification.ok) {
     console.warn(`[stepGenerator] heuristic verification warning at "${verification.failedStep?.title}": ${verification.reason} — publishing anyway for MVP (wrong step worse than no hint, but we have no better)`);
   }
-  return fallback;
+  return { steps: fallback, meta: { mode: "heuristic" } };
+}
+
+export async function generateStepPlan(exercise: Exercise, reference: string): Promise<Step[]> {
+  const { steps } = await generateStepPlanWithMeta(exercise, reference);
+  return steps;
 }

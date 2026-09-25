@@ -23,7 +23,19 @@
     "pythonOnly": "الإطلاق: بايثون. البنية جاهزة للغات أخرى.",
     "principles": "المبادئ: لا حل كامل، تلميحات متدرجة، يعمل دون اتصال",
     "choosePython": "المتابعة مع بايثون",
-    "pastePlaceholder": "الصق نص التمرين هنا..."
+    "pastePlaceholder": "الصق نص التمرين هنا...",
+    "progressParse": "تحليل التمرين…",
+    "progressReference": "توليد الحل…",
+    "progressSteps": "إنشاء الخطوات…",
+    "progressDoneLLM": "انتهى — LLM",
+    "progressDoneLocal": "انتهى — محلي",
+    "progressDoneCache": "Cache — معاد استخدامه",
+    "modeLLM": "LLM",
+    "modeLocal": "محلي",
+    "modeCache": "Cache",
+    "modeRemoteAI": "ذكاء عن بعد",
+    "modeOfflineHeuristic": "استدلال دون اتصال",
+    "modeReused": "معاد استخدامه"
   },
   "nav": {
     "home": "الرئيسية",

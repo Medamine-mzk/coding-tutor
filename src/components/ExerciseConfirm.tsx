@@ -8,9 +8,10 @@ type Props = {
   exercise: Exercise;
   onConfirm: (ex: Exercise) => void;
   onCancel: () => void;
+  meta?: Record<string, unknown> | null;
 };
 
-export function ExerciseConfirm({ exercise: initial, onConfirm, onCancel }: Props) {
+export function ExerciseConfirm({ exercise: initial, onConfirm, onCancel, meta }: Props) {
   const { locale, dir } = useI18n();
   const [ex, setEx] = useState<Exercise>(initial);
   const [saving, setSaving] = useState(false);
@@ -52,6 +53,35 @@ export function ExerciseConfirm({ exercise: initial, onConfirm, onCancel }: Prop
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
             {locale === "ar" ? "تحقق وعدّل قبل البدء. العنوان والتفاصيل مرئية فقط، الحل لا يذهب للمتصفح أبدا." : locale === "en" ? "Check and edit before starting. Titles only — the reference solution never reaches the browser." : "Vérifie et corrige avant de commencer. Titres seulement — la solution de référence ne part jamais vers le navigateur."}
           </p>
+          {meta && (meta as { parseMode?: string }).parseMode ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs" data-testid="confirm-meta">
+              <span
+                className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ring-1 ring-inset ${
+                  (meta as { parseMode?: string }).parseMode === "llm"
+                    ? "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-300"
+                    : (meta as { parseMode?: string }).parseMode === "cache"
+                      ? "bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-950 dark:text-sky-300"
+                      : "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950 dark:text-amber-300"
+                }`}
+              >
+                {(meta as { parseMode?: string }).parseMode === "llm" ? "LLM" : (meta as { parseMode?: string }).parseMode === "cache" ? "Cache" : "Local"}
+              </span>
+              <span className="text-zinc-500">
+                {(meta as { parseMode?: string }).parseMode === "llm"
+                  ? locale === "ar" ? "IA distante" : locale === "en" ? "remote AI" : "IA distante"
+                  : (meta as { parseMode?: string }).parseMode === "cache"
+                    ? locale === "ar" ? "réutilisé" : locale === "en" ? "reused" : "réutilisé"
+                    : locale === "ar" ? "heuristique hors ligne" : locale === "en" ? "offline heuristic" : "heuristique hors ligne"}
+              </span>
+              {(meta as { provider?: string }).provider ? <span className="text-zinc-400">· {(meta as { provider?: string }).provider}</span> : null}
+              {(meta as { timings?: { totalMs?: number } }).timings?.totalMs ? (
+                <span className="text-zinc-400">· {Math.round((meta as { timings: { totalMs: number } }).timings.totalMs)}ms</span>
+              ) : null}
+              {(meta as { matchMethod?: string }).matchMethod ? (
+                <span className="text-zinc-400">· {(meta as { matchMethod?: string }).matchMethod}</span>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         <span className="shrink-0 rounded-full bg-emerald-600 px-3 py-1 text-xs font-medium text-white">{ex.language}</span>
       </div>

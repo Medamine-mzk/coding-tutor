@@ -23,7 +23,19 @@
     "pythonOnly": "Lancement : Python. Architecture prête pour d'autres langages.",
     "principles": "Principes : jamais la solution complète, indices progressifs, offline-first",
     "choosePython": "Continuer avec Python",
-    "pastePlaceholder": "Colle ici l'énoncé de ton exercice..."
+    "pastePlaceholder": "Colle ici l'énoncé de ton exercice...",
+    "progressParse": "Analyse de l'énoncé…",
+    "progressReference": "Génération de la solution…",
+    "progressSteps": "Création des étapes…",
+    "progressDoneLLM": "Terminé — LLM",
+    "progressDoneLocal": "Terminé — local",
+    "progressDoneCache": "Cache — réutilisé",
+    "modeLLM": "LLM",
+    "modeLocal": "Local",
+    "modeCache": "Cache",
+    "modeRemoteAI": "IA distante",
+    "modeOfflineHeuristic": "heuristique hors ligne",
+    "modeReused": "réutilisé"
   },
   "nav": {
     "home": "Accueil",

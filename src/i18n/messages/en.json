@@ -23,7 +23,19 @@
     "pythonOnly": "Launch: Python. Architecture ready for more languages.",
     "principles": "Principles: never the full solution, progressive hints, offline-first",
     "choosePython": "Continue with Python",
-    "pastePlaceholder": "Paste your exercise statement here..."
+    "pastePlaceholder": "Paste your exercise statement here...",
+    "progressParse": "Parsing exercise…",
+    "progressReference": "Generating solution…",
+    "progressSteps": "Creating steps…",
+    "progressDoneLLM": "Done — LLM",
+    "progressDoneLocal": "Done — local",
+    "progressDoneCache": "Cache — reused",
+    "modeLLM": "LLM",
+    "modeLocal": "Local",
+    "modeCache": "Cache",
+    "modeRemoteAI": "remote AI",
+    "modeOfflineHeuristic": "offline heuristic",
+    "modeReused": "reused"
   },
   "nav": {
     "home": "Home",

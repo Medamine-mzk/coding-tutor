@@ -94,14 +94,23 @@ async function callGeminiForReference(system: string, user: string): Promise<str
   return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 }
 
-export async function generateReferenceSolutionLLM(exercise: Exercise): Promise<string | null> {
+export type ReferenceMeta = { mode: "llm" | "heuristic"; provider?: string };
+
+export async function generateReferenceSolutionWithMeta(exercise: Exercise): Promise<{ code: string | null; meta: ReferenceMeta }> {
+  // Test determinism: use heuristic
+  if (process.env.NODE_ENV === "test" || process.env.VITEST) {
+    const h = generateHeuristicReference(exercise);
+    return { code: h, meta: { mode: "heuristic" } };
+  }
   const geminiKey = process.env.GEMINI_API_KEY;
   const groqKey = process.env.GROQ_API_KEY;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   const hasGemini = !!geminiKey;
   const hasGroq = !!groqKey;
   const hasAnthropic = !!anthropicKey;
-  if (!hasGemini && !hasGroq && !hasAnthropic) return generateHeuristicReference(exercise);
+  if (!hasGemini && !hasGroq && !hasAnthropic) {
+    return { code: generateHeuristicReference(exercise), meta: { mode: "heuristic" } };
+  }
 
   const examplesStr = exercise.examples.map((e) => `Input: ${e.input} -> Output: ${e.output}`).join("\n");
   const system =
@@ -113,16 +122,13 @@ export async function generateReferenceSolutionLLM(exercise: Exercise): Promise<
 
   try {
     let textPart = "";
+    let provider: string | undefined;
     if (hasGemini) {
       try {
         textPart = await callGeminiForReference(system, userContent);
+        if (textPart) provider = "gemini";
       } catch (e) {
         console.warn("[reference] Gemini failed, falling back:", e instanceof Error ? e.message : String(e));
-        if (hasGroq) {
-          // fall through to Groq
-        } else if (hasAnthropic) {
-          // fall through to Anthropic
-        } else throw e;
       }
     }
     if (!textPart && hasGroq) {
@@ -147,6 +153,7 @@ export async function generateReferenceSolutionLLM(exercise: Exercise): Promise<
       if (!res.ok) throw new Error(`Groq ${res.status}`);
       const data = (await res.json()) as { choices: Array<{ message: { content: string } }> };
       textPart = data.choices?.[0]?.message?.content ?? "";
+      if (textPart) provider = "groq";
     }
     if (!textPart && hasAnthropic) {
       const model = process.env.TUTOR_MODEL ?? process.env.PARSE_MODEL ?? "claude-sonnet-4-20250514";
@@ -168,16 +175,24 @@ export async function generateReferenceSolutionLLM(exercise: Exercise): Promise<
       if (!res.ok) throw new Error(`Anthropic ${res.status}`);
       const data = (await res.json()) as { content: Array<{ type: string; text: string }> };
       textPart = data.content?.find((c) => c.type === "text")?.text ?? "";
+      if (textPart) provider = "anthropic";
     }
     const block = textPart.match(/```python([\s\S]*?)```/);
-    if (block) return block[1].trim();
+    if (block) return { code: block[1].trim(), meta: { mode: "llm" as const, provider } };
     const fallback = textPart.match(/```([\s\S]*?)```/);
-    if (fallback) return fallback[1].trim();
-    if (textPart.includes("def ") || textPart.includes("print") || textPart.includes("input")) return textPart.trim();
-    return generateHeuristicReference(exercise);
+    if (fallback) return { code: fallback[1].trim(), meta: { mode: "llm" as const, provider } };
+    if (textPart.includes("def ") || textPart.includes("print") || textPart.includes("input")) return { code: textPart.trim(), meta: { mode: "llm" as const, provider } };
+    const h = generateHeuristicReference(exercise);
+    return { code: h, meta: { mode: h ? "heuristic" as const : "heuristic" as const } };
   } catch {
-    return generateHeuristicReference(exercise);
+    const h = generateHeuristicReference(exercise);
+    return { code: h, meta: { mode: "heuristic" as const } };
   } finally {
     clearTimeout(timer);
   }
+}
+
+export async function generateReferenceSolutionLLM(exercise: Exercise): Promise<string | null> {
+  const { code } = await generateReferenceSolutionWithMeta(exercise);
+  return code;
 }
