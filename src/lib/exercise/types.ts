@@ -54,7 +54,9 @@ export type Exercise = {
   difficulty: 1 | 2 | 3 | 4 | 5;
   concepts: Concept[];
   source: ExerciseSource;
-  milestones: Milestone[]; // legacy view; new code should read StepPlan
+  milestones: Milestone[]; // legacy view; new code should read StepPlan / steps
+  steps?: import("./stepPlan").Step[]; // redacted client view per addendum 1.4 — only current step has goal/check
+  currentStepOrder?: number; // 1-indexed order of the step currently in progress
   step_plan_version?: number; // pinned per Session
   visibleTests: TestCase[];
   hiddenTests: TestCase[];
@@ -73,6 +75,7 @@ export type Session = {
   exerciseId: string;
   canonicalExerciseId?: string | null;
   stepPlanVersion: number; // pinned at start
+  currentStepOrder: number; // 1-indexed — which step is currently in progress (progressive disclosure, addendum 1.4)
   currentCode: string;
   status: "in_progress" | "completed" | "abandoned";
   startedAt: string;

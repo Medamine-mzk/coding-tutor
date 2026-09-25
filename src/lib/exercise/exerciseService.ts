@@ -1,12 +1,12 @@
 import { buildExerciseFromHeuristics } from "./parser";
 import { generateReferenceSolutionLLM, generateHeuristicReference } from "./reference";
 import { validateTestsWithReference } from "./validate";
-import { verifyStepPlan } from "./stepVerification";
 import { generateStepPlan } from "./stepGenerator";
 import { canonicalTextHash, exampleSignature, embeddingIndex, getInflight, setInflight, toCanonicalExercise, recordHit, executionVerifiedMatch, llmJudgeSameProblem, clearCache } from "./exerciseCache";
 import { ensureLocalizedCopy } from "./localization";
 import type { Exercise } from "./types";
 import type { Step, CanonicalExercise } from "./stepPlan";
+import { toClientSteps } from "./stepPlan";
 
 export type CreateResult =
   | { fromCache: true; canonical: CanonicalExercise; exercise: Exercise; matchMethod: "exact_hash" | "execution_verified" }
@@ -45,7 +45,10 @@ export function clearExerciseService() {
 }
 
 // Main entry: create or reuse a verified CanonicalExercise for the raw text
-export async function createOrReuseExercise(rawText: string, opts: { source?: Exercise["source"]; uiLocale?: string; neverCache?: boolean } = {}): Promise<CreateResult> {
+export async function createOrReuseExercise(
+  rawText: string,
+  opts: { source?: Exercise["source"]; uiLocale?: string; neverCache?: boolean; currentStepOrder?: number } = {}
+): Promise<CreateResult> {
   const normalizedHash = canonicalTextHash(rawText);
   const source = opts.source ?? "typed";
 
@@ -62,7 +65,8 @@ export async function createOrReuseExercise(rawText: string, opts: { source?: Ex
     const canonical = await inflight;
     // If the inflight canonical is neverCache, don't reuse — fall through to fresh generation
     if (!canonical.neverCache) {
-      const exercise = toExerciseView(canonical, opts.uiLocale ?? canonical.languages[Object.keys(canonical.languages)[0]]?.title ? Object.keys(canonical.languages)[0] : "fr");
+      const currentOrder = opts.currentStepOrder ?? 1;
+      const exercise = toExerciseView(canonical, opts.uiLocale ?? Object.keys(canonical.languages)[0] as string, currentOrder);
       return { fromCache: true, canonical, exercise, matchMethod: "exact_hash" };
     }
   }
@@ -80,7 +84,8 @@ export async function createOrReuseExercise(rawText: string, opts: { source?: Ex
       if (canon.neverCache) continue;
       recordHit(canon);
       if (opts.uiLocale && !canon.languages[opts.uiLocale]) await ensureLocalizedCopy(canon, opts.uiLocale);
-      const exercise = toExerciseView(canon, opts.uiLocale);
+      const currentOrder = opts.currentStepOrder ?? 1;
+      const exercise = toExerciseView(canon, opts.uiLocale, currentOrder);
       return { fromCache: true, canonical: canon, exercise, matchMethod: "exact_hash" };
     }
   }
@@ -93,7 +98,8 @@ export async function createOrReuseExercise(rawText: string, opts: { source?: Ex
       if (cand.neverCache) continue;
       recordHit(cand);
       if (opts.uiLocale && !cand.languages[opts.uiLocale]) await ensureLocalizedCopy(cand, opts.uiLocale);
-      const exercise = toExerciseView(cand, opts.uiLocale);
+      const currentOrder = opts.currentStepOrder ?? 1;
+      const exercise = toExerciseView(cand, opts.uiLocale, currentOrder);
       return { fromCache: true, canonical: cand, exercise, matchMethod: "execution_verified" };
     }
   }
@@ -179,11 +185,12 @@ async function generateNewCanonical(
   setInflight(hash, promise);
   try {
     const canonical = await promise;
+    const currentOrder = 1; // new exercise always starts at step 1
     if (isLowConfidence) {
-      const exercise = toExerciseView(canonical, provisional.uiLocale);
+      const exercise = toExerciseView(canonical, provisional.uiLocale, currentOrder);
       return { fromCache: false, lowConfidence: true as const, exercise };
     }
-    const exercise = toExerciseView(canonical, provisional.uiLocale);
+    const exercise = toExerciseView(canonical, provisional.uiLocale, currentOrder);
     return { fromCache: false, canonical, exercise, matchMethod: "new" as const };
   } catch (e) {
     // On verification failure, still return a provisional exercise but flag
@@ -201,9 +208,14 @@ function normalizeForHash(canon: CanonicalExercise): string {
   return canonicalTextHash(stmt);
 }
 
-function toExerciseView(canonical: CanonicalExercise, uiLocale?: string): Exercise {
+export function toExerciseView(
+  canonical: CanonicalExercise,
+  uiLocale?: string,
+  currentStepOrder: number = 1
+): Exercise {
   const locale = (uiLocale ?? Object.keys(canonical.languages)[0] ?? "fr") as string;
   const copy = canonical.languages[locale] ?? canonical.languages[Object.keys(canonical.languages)[0]];
+  // Legacy milestones (titles only, kept for compat) — still redacted via steps
   const milestones = canonical.step_plan.map((s: Step) => ({
     id: s.id,
     exerciseId: canonical.id,
@@ -217,8 +229,17 @@ function toExerciseView(canonical: CanonicalExercise, uiLocale?: string): Exerci
       if (copy.step_titles[i]) milestones[i].title = copy.step_titles[i];
     }
   }
-  // Progressive disclosure: for now, the UI hides future goals; we send all but the client will only show current.
-  // To enforce server-side, we could blank future goals here based on Session, but MVP sends all titles.
+  // Progressive disclosure (addendum 1.4): only current step's goal and check leave the server.
+  // Future steps are title-only — blank goal/check/hint_seeds server-side so devtools
+  // network tab cannot reveal the whole plan. This is cheap and closes the exact leak
+  // the hint-ladder / anti-leak layer was built to prevent.
+  const localizedSteps: Step[] = canonical.step_plan.map((s, i) => {
+    const localized = { ...s };
+    if (copy?.step_titles[i]) localized.title = copy.step_titles[i];
+    if (copy?.step_goals[i]) localized.goal = copy.step_goals[i];
+    return localized;
+  });
+  const clientSteps = toClientSteps(localizedSteps, currentStepOrder);
   return {
     id: `ex_${canonical.id.slice(0, 8)}`,
     canonical_exercise_id: canonical.id,
@@ -233,9 +254,19 @@ function toExerciseView(canonical: CanonicalExercise, uiLocale?: string): Exerci
     concepts: canonical.concepts as never,
     source: "typed",
     milestones,
+    steps: clientSteps,
+    currentStepOrder,
     step_plan_version: canonical.step_plan_version,
     visibleTests: canonical.visible_tests,
     hiddenTests: canonical.hidden_tests,
     hiddenTestsRef: `ref_${canonical.id}`,
   } as unknown as Exercise;
+}
+
+// Convenience for session-aware callers: advance disclosure when steps complete
+export function toExerciseViewForSession(
+  canonical: CanonicalExercise,
+  session: { currentStepOrder: number; uiLocale?: string }
+): Exercise {
+  return toExerciseView(canonical, session.uiLocale, session.currentStepOrder);
 }

@@ -116,3 +116,26 @@ export function milestoneToStep(m: Milestone, locale: Locale = "fr"): Step {
 export function exerciseMilestonesToSteps(exercise: Exercise): Step[] {
   return exercise.milestones.map((m) => milestoneToStep(m, exercise.uiLocale));
 }
+
+// Progressive disclosure per addendum 1.4: only current step's goal and check are sent in full.
+// Future steps are title-only; past steps remain fully visible for review. This blanks
+// the exact leak the hint-ladder redaction was built to prevent (devtools network tab).
+export function toClientSteps(steps: Step[], currentOrder: number): Step[] {
+  return steps.map((s) => {
+    if (s.order <= currentOrder) return s;
+    return {
+      ...s,
+      goal: "",
+      io_test: null,
+      function_test: null,
+      ast_check: null,
+      hint_seeds: {},
+      successCriteria: "",
+      hintSeeds: [],
+    };
+  });
+}
+
+export function redactStepsForClient(steps: Step[], currentOrder: number): Step[] {
+  return toClientSteps(steps, currentOrder);
+}

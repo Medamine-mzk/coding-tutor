@@ -67,17 +67,19 @@ export async function POST(req: NextRequest) {
   // Addendum pipeline: verified StepPlan + cache (behind flag; falls back to legacy path if disabled)
   const useCache = process.env.ENABLE_EXERCISE_CACHE !== "false";
   const neverCache = (body as { neverCache?: boolean }).neverCache === true;
+  // Progressive disclosure: client may send currentStepOrder (1-indexed) when re-fetching
+  // after completing a step; initial parse always starts at 1. The server blanks future
+  // steps' goal/check server-side (exerciseService.toClientSteps) so devtools cannot
+  // reveal the whole plan — fixes the exact leak the hint-ladder was built to prevent.
+  const currentStepOrder = (body as { currentStepOrder?: number }).currentStepOrder ?? 1;
   if (useCache) {
     try {
       const result = await createOrReuseExercise(trimmed, {
         source: (source as "typed" | "upload" | "library") ?? "typed",
         uiLocale: detectLanguage(trimmed),
         neverCache,
-      });
-      // Progressive disclosure: only current step's goal is sent full; future steps title only
-      // The service already stores the full StepPlan in CanonicalExercise; the view's milestones are the Steps
-      // but the UI will hide future goals (it already does per PROJECT_SPEC 6.2). We keep the full object
-      // here so the client has titles; goal stripping is done client-side per current step.
+        currentStepOrder: Math.max(1, Math.min(7, currentStepOrder)),
+      } as unknown as Parameters<typeof createOrReuseExercise>[1]);
       if ((result as { lowConfidence?: boolean }).lowConfidence) {
         console.warn("[parse] low-confidence exercise, logged for review", { matchMethod: (result as { matchMethod?: string }).matchMethod });
       }

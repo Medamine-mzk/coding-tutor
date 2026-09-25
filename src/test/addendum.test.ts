@@ -157,3 +157,60 @@ describe("Localization cache (addendum 2.4)", () => {
     expect(r2.canonical.languages["fr"]).toBeDefined();
   });
 });
+
+describe("Progressive disclosure (addendum 1.4)", () => {
+  beforeEach(() => {
+    clearExerciseService();
+    clearCache();
+  });
+
+  it("server blanks future steps' goal and check data — only current step is fully visible", async () => {
+    const text = "Somme de deux nombres.\nEntrée: 2 3 → Sortie: 5\nCe programme doit lire deux entiers et afficher leur somme, en gérant les cas limites.";
+    const r1 = await createOrReuseExercise(text, { uiLocale: "fr" });
+    // new exercise always starts at step 1
+    const ex = r1.exercise as unknown as { steps?: import("@/lib/exercise/stepPlan").Step[]; currentStepOrder?: number };
+    expect(ex.steps).toBeDefined();
+    expect(ex.steps!.length).toBeGreaterThanOrEqual(3);
+    expect(ex.currentStepOrder).toBe(1);
+    // titles are always visible
+    for (const s of ex.steps!) expect(s.title.length).toBeGreaterThan(0);
+    // current step (order 1) has goal and at least empty check fields populated (or hint_seeds)
+    const first = ex.steps!.find((s) => s.order === 1)!;
+    expect(first.goal.length).toBeGreaterThan(0);
+    // future steps must be title-only — goal blank and checks null/empty
+    const future = ex.steps!.filter((s) => s.order > 1);
+    expect(future.length).toBeGreaterThan(0);
+    for (const s of future) {
+      expect(s.goal).toBe("");
+      expect(s.io_test).toBeNull();
+      expect(s.function_test).toBeNull();
+      expect(s.ast_check).toBeNull();
+      expect(s.hint_seeds).toEqual({});
+      // successCriteria / hintSeeds also blanked
+      expect(s.successCriteria).toBe("");
+      expect(s.hintSeeds).toEqual([]);
+    }
+    // verify canonical still stores full plan server-side (not leaked to client but present in store)
+    const full = r1.canonical.step_plan;
+    expect(full.length).toBe(ex.steps!.length);
+    const fullFuture = full.filter((s) => s.order > 1);
+    // At least one future step in the full plan has a real goal/check that was blanked for the client
+    expect(fullFuture.some((s) => s.goal.length > 0 || s.io_test || s.ast_check || s.function_test)).toBe(true);
+  });
+
+  it("advancing currentStepOrder reveals the next step's goal", async () => {
+    const text = `Disclosure advance ${Date.now()}\nEntrée: 1 2 → Sortie: 3`;
+    const r1 = await createOrReuseExercise(text, { uiLocale: "fr" });
+    const id = r1.canonical.id;
+    // Re-fetch same canonical with currentStepOrder=2 should reveal step 2
+    const { getCanonicalExercise, toExerciseView } = await import("@/lib/exercise/exerciseService");
+    const canon = getCanonicalExercise(id)!;
+    const ex2 = toExerciseView(canon, "fr", 2) as unknown as { steps: import("@/lib/exercise/stepPlan").Step[] };
+    const s1 = ex2.steps.find((s) => s.order === 1)!;
+    const s2 = ex2.steps.find((s) => s.order === 2)!;
+    const future = ex2.steps.filter((s) => s.order > 2);
+    expect(s1.goal.length).toBeGreaterThan(0);
+    expect(s2.goal.length).toBeGreaterThan(0);
+    for (const s of future) expect(s.goal).toBe("");
+  });
+});
