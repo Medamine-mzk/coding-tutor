@@ -123,16 +123,10 @@ export async function generateReferenceSolutionWithMeta(exercise: Exercise): Pro
   try {
     let textPart = "";
     let provider: string | undefined;
-    if (hasGemini) {
+    // Prefer Groq (qwen verified) then Gemini — Gemini AQ. 401 currently blocked
+    if (hasGroq) {
       try {
-        textPart = await callGeminiForReference(system, userContent);
-        if (textPart) provider = "gemini";
-      } catch (e) {
-        console.warn("[reference] Gemini failed, falling back:", e instanceof Error ? e.message : String(e));
-      }
-    }
-    if (!textPart && hasGroq) {
-      const groqModel = process.env.GROQ_MODEL ?? process.env.TUTOR_MODEL ?? "llama-3.1-8b-instant";
+        const groqModel = process.env.GROQ_MODEL ?? process.env.TUTOR_MODEL ?? "qwen/qwen3.8-27b";
       const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -154,8 +148,19 @@ export async function generateReferenceSolutionWithMeta(exercise: Exercise): Pro
       const data = (await res.json()) as { choices: Array<{ message: { content: string } }> };
       textPart = data.choices?.[0]?.message?.content ?? "";
       if (textPart) provider = "groq";
+      } catch (e) {
+        console.warn("[reference] Groq failed, falling back:", e instanceof Error ? e.message : String(e));
+      }
     }
-    if (!textPart && hasAnthropic) {
+    if (!textPart && hasGemini) {
+      try {
+        textPart = await callGeminiForReference(system, userContent);
+        if (textPart) provider = "gemini";
+      } catch (e) {
+        console.warn("[reference] Gemini failed, falling back:", e instanceof Error ? e.message : String(e));
+      }
+    }
+    if (!textPart && hasAnthropic && anthropicKey !== "sk-ant-placeholder") {
       const model = process.env.TUTOR_MODEL ?? process.env.PARSE_MODEL ?? "claude-sonnet-4-20250514";
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",

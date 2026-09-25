@@ -71,7 +71,8 @@ async function callGeminiForStepPlan(system: string, user: string): Promise<stri
   return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 }
 
-async function generateViaLLM(exercise: Exercise, reference: string): Promise<Step[] | null> {
+async function generateViaLLM(exercise: Exercise, reference: string): Promise<{ steps: Step[]; provider: string } | null> {
+  // keep provider for outer wrapper
   // In test, use heuristic fallback for determinism (no network, no flakiness)
   if (process.env.NODE_ENV === "test" || process.env.VITEST) return null;
   const hasGemini = !!process.env.GEMINI_API_KEY;
@@ -122,17 +123,12 @@ Rules:
   const timer = setTimeout(() => controller.abort(), 15000);
   try {
     let jsonStr = "";
-    if (hasGemini) {
-      try {
-        jsonStr = await callGeminiForStepPlan(system, user);
-      } catch (e) {
-        console.warn("[stepGenerator] Gemini StepPlan failed, fallback:", e instanceof Error ? e.message : String(e));
-      }
-    }
-    if (!jsonStr && hasGroq) {
+    let provider: string | undefined;
+    // Prefer Groq (qwen verified working) then Gemini
+    if (hasGroq) {
       try {
         const groqKey = process.env.GROQ_API_KEY!;
-        const groqModel = process.env.GROQ_MODEL ?? process.env.TUTOR_MODEL ?? "llama-3.1-8b-instant";
+        const groqModel = process.env.GROQ_MODEL ?? process.env.TUTOR_MODEL ?? "qwen/qwen3.8-27b";
         const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
           headers: { Authorization: `Bearer ${groqKey}`, "content-type": "application/json" },
@@ -151,11 +147,20 @@ Rules:
         if (!res.ok) throw new Error(`Groq ${res.status}`);
         const data = (await res.json()) as { choices: Array<{ message: { content: string } }> };
         jsonStr = data.choices?.[0]?.message?.content ?? "";
+        if (jsonStr) provider = "groq";
       } catch (e) {
         console.warn("[stepGenerator] Groq StepPlan failed:", e instanceof Error ? e.message : String(e));
       }
     }
-    if (!jsonStr && hasAnthropic) {
+    if (!jsonStr && hasGemini) {
+      try {
+        jsonStr = await callGeminiForStepPlan(system, user);
+        if (jsonStr) provider = "gemini";
+      } catch (e) {
+        console.warn("[stepGenerator] Gemini StepPlan failed, fallback:", e instanceof Error ? e.message : String(e));
+      }
+    }
+    if (!jsonStr && hasAnthropic && process.env.ANTHROPIC_API_KEY !== "sk-ant-placeholder") {
       try {
         const anthropicKey = process.env.ANTHROPIC_API_KEY!;
         const model = process.env.TUTOR_MODEL ?? process.env.PARSE_MODEL ?? "claude-sonnet-4-20250514";
@@ -201,7 +206,7 @@ Rules:
       successCriteria: s.check_type,
       hintSeeds: Object.values(s.hint_seeds ?? {}).flat().slice(0, 3) as string[],
     }));
-    return steps;
+    return { steps, provider: provider ?? "groq" };
   } catch (e) {
     console.warn("[stepGenerator] LLM parse failed:", e instanceof Error ? e.message : String(e));
     return null;
@@ -221,12 +226,11 @@ export async function generateStepPlanWithMeta(exercise: Exercise, reference: st
   }
   const hasLLM = !!process.env.GEMINI_API_KEY || !!process.env.GROQ_API_KEY || !!process.env.ANTHROPIC_API_KEY;
   if (hasLLM) {
-    const llmSteps = await generateViaLLM(exercise, reference);
-    if (llmSteps) {
-      const verification = await verifyStepPlan(reference, llmSteps);
+    const res = await generateViaLLM(exercise, reference);
+    if (res) {
+      const verification = await verifyStepPlan(reference, res.steps);
       if (verification.ok) {
-        // Determine provider: generateViaLLM doesn't expose, so infer as llm
-        return { steps: llmSteps, meta: { mode: "llm", provider: "gemini" } };
+        return { steps: res.steps, meta: { mode: "llm", provider: res.provider } };
       }
       console.warn(`[stepGenerator] LLM steps failed verification at "${verification.failedStep?.title}": ${verification.reason} — falling back to heuristic`);
     }

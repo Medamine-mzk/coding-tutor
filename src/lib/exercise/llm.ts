@@ -65,55 +65,59 @@ export async function parseExerciseWithLLM(opts: LLMOptions): Promise<Exercise> 
 
   try {
     let jsonStr = "";
+    let usedProvider: string | undefined;
 
-    // Prefer Gemini 2.0 Flash (best JSON) then Groq then Anthropic
-    if (hasGemini) {
+    // Prefer Groq (fast, cheap, now qwen) then Gemini (best JSON when key valid) then Anthropic
+    // Gemini AQ. keys are currently 401 blocked for generativelanguage, so Groq first avoids 1s delay
+    if (hasGroq) {
+      try {
+        const groqModel = process.env.GROQ_MODEL ?? process.env.TUTOR_MODEL ?? "qwen/qwen3.8-27b";
+        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${groqKey}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            model: groqModel,
+            temperature: 0.2,
+            max_tokens: 2000,
+            response_format: { type: "json_object" },
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+          }),
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          const txt = await res.text().catch(() => "");
+          throw new Error(`Groq ${res.status}: ${txt.slice(0, 500)}`);
+        }
+        const data = (await res.json()) as { choices: Array<{ message: { content: string } }> };
+        jsonStr = data.choices?.[0]?.message?.content ?? "";
+        if (jsonStr) usedProvider = "groq";
+      } catch (e) {
+        console.warn("[parse] Groq failed, falling back:", e instanceof Error ? e.message : String(e));
+      }
+    }
+    if (!jsonStr && hasGemini) {
       try {
         jsonStr = await callGemini(systemPrompt, userPrompt, 2000);
+        if (jsonStr) usedProvider = "gemini";
       } catch (e) {
         console.warn("[parse] Gemini failed, falling back:", e instanceof Error ? e.message : String(e));
-        if (hasGroq) {
-          // fall through to Groq below
-        } else if (hasAnthropic) {
-          // fall through to Anthropic below
-        } else throw e;
-      }
-      // If Gemini returned empty, try next provider
-      if (!jsonStr && hasGroq) {
-        // continue to Groq
-      } else if (jsonStr) {
-        // we have a result from Gemini, skip other providers
-        // jsonStr already set
       }
     }
-    if (!jsonStr && hasGroq) {
-      const groqModel = process.env.GROQ_MODEL ?? process.env.TUTOR_MODEL ?? "llama-3.1-8b-instant";
-      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${groqKey}`,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          model: groqModel,
-          temperature: 0.2,
-          max_tokens: 2000,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-        }),
-        signal: controller.signal,
-      });
-      if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        throw new Error(`Groq ${res.status}: ${txt.slice(0, 500)}`);
+    if (!jsonStr && hasGemini) {
+      try {
+        jsonStr = await callGemini(systemPrompt, userPrompt, 2000);
+        if (jsonStr) usedProvider = "gemini";
+      } catch (e) {
+        console.warn("[parse] Gemini failed, falling back:", e instanceof Error ? e.message : String(e));
       }
-      const data = (await res.json()) as { choices: Array<{ message: { content: string } }> };
-      jsonStr = data.choices?.[0]?.message?.content ?? "";
     }
-    if (!jsonStr && hasAnthropic) {
+    if (!jsonStr && hasAnthropic && anthropicKey !== "sk-ant-placeholder") {
       const model = process.env.TUTOR_MODEL ?? process.env.PARSE_MODEL ?? "claude-sonnet-4-20250514";
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -221,7 +225,35 @@ export async function parseExerciseWithLLMStrict(opts: LLMOptions): Promise<Stri
     const hasGroq = !!groqKey;
     const hasAnthropic = !!anthropicKey;
 
-    if (hasGemini) {
+    // Prefer Groq first (fast, qwen verified) then Gemini
+    if (hasGroq) {
+      try {
+        const groqModel = process.env.GROQ_MODEL ?? process.env.TUTOR_MODEL ?? "qwen/qwen3.8-27b";
+        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${groqKey}`, "content-type": "application/json" },
+          body: JSON.stringify({
+            model: groqModel,
+            temperature: 0.2,
+            max_tokens: 2000,
+            response_format: { type: "json_object" },
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+          }),
+          signal: controller.signal,
+        });
+        if (res.ok) {
+          const data = (await res.json()) as { choices: Array<{ message: { content: string } }> };
+          jsonStr = data.choices?.[0]?.message?.content ?? "";
+          if (jsonStr) usedProvider = "groq";
+        }
+      } catch (e) {
+        console.warn("[strict parse] Groq failed, falling back:", e instanceof Error ? e.message : String(e));
+      }
+    }
+    if (!jsonStr && hasGemini) {
       try {
         jsonStr = await callGemini(systemPrompt, userPrompt, 2000);
         if (jsonStr) usedProvider = "gemini";
@@ -229,30 +261,7 @@ export async function parseExerciseWithLLMStrict(opts: LLMOptions): Promise<Stri
         console.warn("[strict parse] Gemini failed, falling back:", e instanceof Error ? e.message : String(e));
       }
     }
-    if (!jsonStr && hasGroq) {
-      const groqModel = process.env.GROQ_MODEL ?? process.env.TUTOR_MODEL ?? "llama-3.1-8b-instant";
-      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${groqKey}`, "content-type": "application/json" },
-        body: JSON.stringify({
-          model: groqModel,
-          temperature: 0.2,
-          max_tokens: 2000,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-        }),
-        signal: controller.signal,
-      });
-      if (res.ok) {
-        const data = (await res.json()) as { choices: Array<{ message: { content: string } }> };
-        jsonStr = data.choices?.[0]?.message?.content ?? "";
-        if (jsonStr) usedProvider = "groq";
-      }
-    }
-    if (!jsonStr && hasAnthropic) {
+    if (!jsonStr && hasAnthropic && anthropicKey !== "sk-ant-placeholder") {
       const model = process.env.TUTOR_MODEL ?? process.env.PARSE_MODEL ?? "claude-sonnet-4-20250514";
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
