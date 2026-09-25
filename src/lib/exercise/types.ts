@@ -22,9 +22,12 @@ export type Milestone = {
   exerciseId: string;
   order: number;
   title: string;
-  successCriteria: string; // internal
+  successCriteria: string; // internal — now typed as Step.check_type; kept for compat
   hintSeeds: string[]; // internal
 };
+
+// Re-export Step as Milestone alias for incremental migration; new code should import from stepPlan
+export type { Step, StepPlan, LocalizedCopy, CanonicalExercise, ExerciseSubmission } from "./stepPlan";
 
 export type TestCase = {
   id: string;
@@ -40,6 +43,7 @@ export type TestCase = {
 export type Exercise = {
   id: string;
   ownerId?: string;
+  canonical_exercise_id?: string | null; // addendum 3
   language: "python"; // MVP only python
   uiLocale: Locale;
   title: string;
@@ -50,15 +54,29 @@ export type Exercise = {
   difficulty: 1 | 2 | 3 | 4 | 5;
   concepts: Concept[];
   source: ExerciseSource;
-  milestones: Milestone[];
+  milestones: Milestone[]; // legacy view; new code should read StepPlan
+  step_plan_version?: number; // pinned per Session
   visibleTests: TestCase[];
   hiddenTests: TestCase[];
   hiddenTestsRef?: string;
+  neverCache?: boolean; // Q1
 };
 
 export type ReferenceSolution = {
   exerciseId: string;
   code: string; // server-only, never sent to browser
+};
+
+export type Session = {
+  id: string;
+  userId?: string;
+  exerciseId: string;
+  canonicalExerciseId?: string | null;
+  stepPlanVersion: number; // pinned at start
+  currentCode: string;
+  status: "in_progress" | "completed" | "abandoned";
+  startedAt: string;
+  finishedAt?: string;
 };
 
 export type ParseRequest = {

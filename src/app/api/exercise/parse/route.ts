@@ -5,6 +5,7 @@ import { generateReferenceSolutionLLM } from "@/lib/exercise/reference";
 import { validateTestsWithReference } from "@/lib/exercise/validate";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rateLimit";
 import { reportError } from "@/lib/monitoring";
+import { createOrReuseExercise } from "@/lib/exercise/exerciseService";
 
 const RATE_MAX = 20;
 const RATE_WINDOW_MS = 60_000;
@@ -61,6 +62,32 @@ export async function POST(req: NextRequest) {
           ? "This does not look like a programming exercise. Please paste the full statement (description, input/output, examples)."
           : "Ceci ne ressemble pas à un exercice de programmation. Colle l'énoncé complet (description, entrées/sorties, exemples).";
     return NextResponse.json({ isExercise: false, clarification, detectedLanguage: lang }, { status: 200, headers: rateHeaders });
+  }
+
+  // Addendum pipeline: verified StepPlan + cache (behind flag; falls back to legacy path if disabled)
+  const useCache = process.env.ENABLE_EXERCISE_CACHE !== "false";
+  const neverCache = (body as { neverCache?: boolean }).neverCache === true;
+  if (useCache) {
+    try {
+      const result = await createOrReuseExercise(trimmed, {
+        source: (source as "typed" | "upload" | "library") ?? "typed",
+        uiLocale: detectLanguage(trimmed),
+        neverCache,
+      });
+      // Progressive disclosure: only current step's goal is sent full; future steps title only
+      // The service already stores the full StepPlan in CanonicalExercise; the view's milestones are the Steps
+      // but the UI will hide future goals (it already does per PROJECT_SPEC 6.2). We keep the full object
+      // here so the client has titles; goal stripping is done client-side per current step.
+      if ((result as { lowConfidence?: boolean }).lowConfidence) {
+        console.warn("[parse] low-confidence exercise, logged for review", { matchMethod: (result as { matchMethod?: string }).matchMethod });
+      }
+      return NextResponse.json(
+        { isExercise: true, exercise: result.exercise, canonicalId: (result as { canonical?: { id: string } }).canonical?.id, matchMethod: (result as { matchMethod?: string }).matchMethod ?? "new" },
+        { status: 200, headers: rateHeaders }
+      );
+    } catch (e) {
+      console.warn("[parse] cache pipeline failed, falling back to legacy:", e instanceof Error ? e.message : String(e));
+    }
   }
 
   try {

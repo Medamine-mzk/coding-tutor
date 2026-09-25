@@ -10,9 +10,21 @@ A web platform that helps Tunisian secondary and university students learn Pytho
 A structured programming task with title, statement, input/output spec, constraints, examples, difficulty, concepts, and generated tests and milestones.
 _Avoid_: problem, kata, challenge
 
-**Milestone**:
-A visible step title within an Exercise that the student completes in any order, with internal success criteria and hint seeds used to detect progress.
-_Avoid_: step, subtask, checkpoint
+**Step** (replaces Milestone per addendum 1.2; Milestone is now exactly Step):
+A verified, gradable stage of an Exercise with a typed check. Only the title is visible until the previous step passes; the goal and check are revealed progressively. The typed check is `io_test` (stdin→stdout), `function_test` (call named function, compare return), or `ast_check` (must_contain nodes).
+_Avoid_: milestone (legacy), subtask, checkpoint
+
+**CanonicalExercise**:
+The single, verified, language-agnostic record for one distinct problem. Holds a multilingual embedding, example_signature, concepts, io_spec, reference_solution_ref (server-only), versioned StepPlan, hidden tests, and a languages cache. Created only after Stage A/B verification; reused via exact-hash or execution-verified matching.
+_Avoid_: cached exercise, shared exercise
+
+**ExerciseSubmission**:
+A student's raw submission before it is linked to a CanonicalExercise. Holds raw_text, detected language, and match metadata (exact_hash, execution_verified, llm_judge_low_confidence, new) plus confidence.
+_Avoid_: submission, attempt
+
+**LocalizedCopy**:
+The translated display strings for one language variant of a CanonicalExercise — title, statement_display, step_titles, step_goals — cached on demand without regenerating the StepPlan.
+_Avoid_: translation, locale copy
 
 **Concept**:
 A programming idea tagged on an Exercise such as loops, conditionals, lists, functions, recursion.
@@ -37,7 +49,7 @@ _Avoid_: answer, model solution, correct code
 ### Session and progress
 
 **Session**:
-An attempt at solving one Exercise, with current code and status in_progress, completed, or abandoned. Anonymous via localStorage for MVP.
+An attempt at solving one Exercise, pinned to the `step_plan_version` it started with so an instructor edit mid-session does not change grading. Holds current code and status in_progress, completed, or abandoned. Anonymous via localStorage for MVP.
 _Avoid_: attempt session, run
 
 **Attempt**:
