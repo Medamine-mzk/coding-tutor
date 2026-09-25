@@ -52,7 +52,9 @@ export async function POST(req: NextRequest) {
   void sanitizeForLLM(trimmed);
 
   // Fast path: if clearly not an exercise and no LLM, return clarification without calling LLM
-  const hasLLM = !!process.env.GROQ_API_KEY || !!process.env.ANTHROPIC_API_KEY;
+  // Strict 1-call: when LLM is available, we let the LLM decide isExercise (single call does structuring),
+  // manual heuristics are offline fallback only.
+  const hasLLM = !!process.env.GEMINI_API_KEY || !!process.env.GROQ_API_KEY || !!process.env.ANTHROPIC_API_KEY;
   if (!isExerciseLike(trimmed) && !hasLLM) {
     const lang = detectLanguage(trimmed);
     const clarification =
@@ -80,11 +82,16 @@ export async function POST(req: NextRequest) {
         neverCache,
         currentStepOrder: Math.max(1, Math.min(7, currentStepOrder)),
       } as unknown as Parameters<typeof createOrReuseExercise>[1]);
+      // Strict 1-call can return isExercise:false (LLM says not an exercise, no heuristics fallback for that case)
+      if ((result as { isExercise?: boolean }).isExercise === false) {
+        const r = result as { isExercise: false; clarification: string; detectedLanguage: string };
+        return NextResponse.json({ isExercise: false, clarification: r.clarification, detectedLanguage: r.detectedLanguage }, { status: 200, headers: rateHeaders });
+      }
       if ((result as { lowConfidence?: boolean }).lowConfidence) {
         console.warn("[parse] low-confidence exercise, logged for review", { matchMethod: (result as { matchMethod?: string }).matchMethod });
       }
       return NextResponse.json(
-        { isExercise: true, exercise: result.exercise, canonicalId: (result as { canonical?: { id: string } }).canonical?.id, matchMethod: (result as { matchMethod?: string }).matchMethod ?? "new" },
+        { isExercise: true, exercise: (result as { exercise: import("@/lib/exercise/types").Exercise }).exercise, canonicalId: (result as { canonical?: { id: string } }).canonical?.id, matchMethod: (result as { matchMethod?: string }).matchMethod ?? "new" },
         { status: 200, headers: rateHeaders }
       );
     } catch (e) {

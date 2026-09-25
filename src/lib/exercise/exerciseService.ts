@@ -7,11 +7,13 @@ import { ensureLocalizedCopy } from "./localization";
 import type { Exercise } from "./types";
 import type { Step, CanonicalExercise } from "./stepPlan";
 import { toClientSteps } from "./stepPlan";
+import { parseExerciseWithLLMStrict } from "./llm";
 
 export type CreateResult =
   | { fromCache: true; canonical: CanonicalExercise; exercise: Exercise; matchMethod: "exact_hash" | "execution_verified" }
   | { fromCache: false; canonical: CanonicalExercise; exercise: Exercise; matchMethod: "new" }
-  | { fromCache: false; lowConfidence: true; exercise: Exercise };
+  | { fromCache: false; lowConfidence: true; exercise: Exercise }
+  | { isExercise: false; clarification: string; detectedLanguage: string };
 
 let lowConfidenceLog: Array<{ rawText: string; candidateId: string | null; reason: string; at: string }> = [];
 
@@ -52,11 +54,32 @@ export async function createOrReuseExercise(
   const normalizedHash = canonicalTextHash(rawText);
   const source = opts.source ?? "typed";
 
+  // Strict 1-call parse (LLM) — single LLM call does isExercise + full structuring.
+  // Manual heuristics are offline fallback only (no keys or LLM failure), as requested.
+  // This makes "Continuer avec Python" robust to phrasing variants without hand-patched regex.
+  let provisional: Exercise;
+  {
+    const strict = await parseExerciseWithLLMStrict({ text: rawText, source });
+    if (!strict.isExercise) {
+      const { detectLanguage } = await import("./parser");
+      const lang = detectLanguage(rawText);
+      const clarification =
+        lang === "ar"
+          ? "هذا لا يبدو كتمرين برمجة. الصق نص التمرين كاملا (البيان، المدخلات، المخرجات، الأمثلة)."
+          : lang === "en"
+            ? "This does not look like a programming exercise. Please paste the full statement (description, input/output, examples)."
+            : "Ceci ne ressemble pas à un exercice de programmation. Colle l'énoncé complet (description, entrées/sorties, exemples).";
+      return { isExercise: false as const, clarification, detectedLanguage: lang };
+    }
+    provisional = strict.exercise;
+    // Respect uiLocale override if provided (e.g., from parse route's detectLanguage)
+    if (opts.uiLocale) provisional.uiLocale = opts.uiLocale as never;
+  }
+
   // Respect neverCache flag (Q1) — platform-wide cache default + per-exercise neverCache
   // For neverCache we bypass the in-flight lock entirely (each call generates fresh)
-  if (opts.neverCache) {
-    const provisionalEarly = buildExerciseFromHeuristics(rawText, source, opts.uiLocale as never);
-    return await generateNewCanonical(rawText, provisionalEarly, normalizedHash, "new", false, true);
+  if (opts.neverCache || provisional.neverCache) {
+    return await generateNewCanonical(rawText, provisional, normalizedHash, "new", false, true);
   }
 
   // In-flight lock: if another request is generating the same normalized text, await it
@@ -69,12 +92,6 @@ export async function createOrReuseExercise(
       const exercise = toExerciseView(canonical, opts.uiLocale ?? Object.keys(canonical.languages)[0] as string, currentOrder);
       return { fromCache: true, canonical, exercise, matchMethod: "exact_hash" };
     }
-  }
-
-  // Build a provisional Exercise via Stage1 parse (no LLM yet, just structure)
-  const provisional = buildExerciseFromHeuristics(rawText, source, opts.uiLocale as never);
-  if (provisional.neverCache) {
-    return await generateNewCanonical(rawText, provisional, normalizedHash, "new", false, true);
   }
 
   // 1. Exact normalized-text hash hit (fastest)
