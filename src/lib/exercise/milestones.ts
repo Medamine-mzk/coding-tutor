@@ -21,6 +21,7 @@ const BASE_MILESTONES: MilestoneDef[] = [
     title: { fr: "Gérer le cas limite", ar: "معالجة الحالة الحدّية", en: "Handle the edge case" },
     successCriteria: "Empty or zero or single-element input handled without crash",
     hintSeeds: ["What should happen if the list is empty?", "Try n=0 or empty line"],
+    when: (ex) => !ex.statement.toLowerCase().includes("facture"),
   },
   {
     title: { fr: "Convertir les unités", ar: "تحويل الوحدات", en: "Convert units" },
@@ -62,7 +63,7 @@ const BASE_MILESTONES: MilestoneDef[] = [
     title: { fr: "Initialiser l'accumulateur", ar: "تهيئة المجمّع", en: "Initialize the accumulator" },
     successCriteria: "Variable for result/sum/count initialized correctly",
     hintSeeds: ["Think about starting value for sum vs product", "Where should count start?"],
-    when: (ex) => ex.concepts.includes("loops") || ex.statement.toLowerCase().includes("somme") || ex.statement.toLowerCase().includes("sum"),
+    when: (ex) => !ex.statement.toLowerCase().includes("facture") && (ex.concepts.includes("loops") || ex.statement.toLowerCase().includes("somme") || ex.statement.toLowerCase().includes("sum")),
   },
   {
     title: { fr: "Boucler sur les données", ar: "التكرار على البيانات", en: "Loop over the data" },
@@ -81,6 +82,18 @@ const BASE_MILESTONES: MilestoneDef[] = [
     successCriteria: "List/dict/string processed correctly",
     hintSeeds: ["Append to list with .append()", "Access by index vs iteration"],
     when: (ex) => ex.concepts.includes("lists") || ex.concepts.includes("dictionaries") || ex.concepts.includes("strings"),
+  },
+  {
+    title: { fr: "Calculer le montant TTC", ar: "حساب المبلغ مع الضريبة", en: "Calculate TTC amount" },
+    successCriteria: "TTC = HT * 1.2 (TVA 20%)",
+    hintSeeds: ["MontantTTC = MontantHT + MontantHT*0.2", "ttc = prix * qte * 1.2", "20% = *0.2"],
+    when: (ex) => ex.statement.toLowerCase().includes("facture") && ex.statement.toLowerCase().includes("tva"),
+  },
+  {
+    title: { fr: "Cumuler le total de la facture", ar: "تجميع المجموع", en: "Accumulate invoice total" },
+    successCriteria: "Total = sum of TTC amounts",
+    hintSeeds: ["total = 0 avant la boucle", "total += ttc", "Somme des TTC"],
+    when: (ex) => ex.statement.toLowerCase().includes("facture"),
   },
   {
     title: { fr: "Définir la fonction", ar: "تعريف الدالة", en: "Define the function" },

@@ -382,7 +382,17 @@ export default function NewExercisePage() {
                 </div>
               ) : null}
               <p className="mt-2 text-sm font-medium text-zinc-900 dark:text-zinc-100">{(draft as { title?: string }).title as string}</p>
-              <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-zinc-50 p-2 text-xs text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100">{JSON.stringify(draft, null, 2).slice(0, 3000)}</pre>
+              <details className="mt-2 rounded-xl border border-black/10 bg-zinc-50 dark:border-white/10 dark:bg-zinc-800" open>
+                <summary className="cursor-pointer list-none px-3 py-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">Voir JSON complet du brouillon — {JSON.stringify(draft).length} chars</summary>
+                <pre className="max-h-96 overflow-auto whitespace-pre-wrap border-t border-black/5 p-3 text-xs text-zinc-900 dark:border-white/10 dark:text-zinc-100">{JSON.stringify(draft, null, 2)}</pre>
+              </details>
+              <div className="mt-2 grid gap-2 rounded-lg bg-zinc-50 p-3 text-xs dark:bg-zinc-800">
+                <p className="font-medium text-zinc-900 dark:text-zinc-100">Aperçu lisible — vérifie avant de publier</p>
+                <p><span className="font-medium">Titre:</span> {(draft as { title?: string }).title as string}</p>
+                <p><span className="font-medium">Exemples:</span> {(draft as { examples?: Array<{ input: string; output: string }> }).examples?.map((e) => `${e.input} → ${e.output}`).join(" | ") || "—"}</p>
+                <p><span className="font-medium">Étapes:</span> {(draft as { steps?: Array<{ title: string }> }).steps?.map((s) => s.title).join(" → ") || "—"}</p>
+                <p><span className="font-medium">Tests visibles:</span> {(draft as { visibleTests?: unknown[] }).visibleTests?.length ?? 0} · <span className="font-medium">cachés:</span> {(draft as { hiddenTests?: unknown[] }).hiddenTests?.length ?? 0}</p>
+              </div>
               <button onClick={handleUseDraft} className="mt-3 w-full rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900">
                 Utiliser ce brouillon dans l'onglet Manuel →
               </button>

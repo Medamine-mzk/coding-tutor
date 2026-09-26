@@ -50,6 +50,34 @@ else:
 `;
   }
 
+  // Facture avec TVA 20% — 2 articles, nom/prix/quantité
+  if (stmt.includes("facture") && stmt.includes("tva")) {
+    return `total = 0
+for _ in range(2):
+    nom = input().strip()
+    try:
+        prix = float(input().strip())
+    except:
+        prix = 0
+    try:
+        qte = int(input().strip())
+    except:
+        qte = 0
+    ht = prix * qte
+    ttc = ht * 1.2
+    total += ttc
+    # Affiche le TTC par article (1 décimale si entier, sinon 2)
+    if ttc.is_integer():
+        print(f"{nom}: {int(ttc)}.0")
+    else:
+        print(f"{nom}: {ttc:.2f}")
+if total.is_integer():
+    print(f"Total: {int(total)}.0")
+else:
+    print(f"Total: {total:.2f}")
+`;
+  }
+
   // Sum of two numbers is the most common starter
   if (stmt.includes("somme") || stmt.includes("sum") || (stmt.includes("deux") && stmt.includes("entier")) || stmt.includes("addition")) {
     return `import sys

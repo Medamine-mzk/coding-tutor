@@ -105,12 +105,28 @@ export async function POST(req: NextRequest) {
         const progressCb = (ev: { stage: string; status: string; progress: number; mode?: string; provider?: string; label?: string }) => send("progress", ev);
         try {
           send("progress", { stage: "parse", status: "start", progress: 5, label: "Analyse de l'énoncé" });
-          const result = await createOrReuseExercise(trimmed, {
+          let result: Awaited<ReturnType<typeof createOrReuseExercise>> = await createOrReuseExercise(trimmed, {
             source: (source as "typed" | "upload" | "library") ?? "typed",
             uiLocale: detectLanguage(trimmed),
             currentStepOrder: 1,
             onProgress: progressCb as never,
-          });
+          }) as Awaited<ReturnType<typeof createOrReuseExercise>>;
+          // Bypass stale heuristic cache for teacher draft when LLM is available and result is generic
+          const isCachedGenericForSse =
+            (result as { exercise?: import("@/lib/exercise/types").Exercise; matchMethod?: string }).exercise?.examples?.[0]?.input === "exemple entrée" &&
+            ((result as { matchMethod?: string }).matchMethod === "exact_hash" || (result as { matchMethod?: string }).matchMethod === "execution_verified") &&
+            hasLLM &&
+            !(body as { force?: boolean }).force;
+          if (isCachedGenericForSse) {
+            send("progress", { stage: "parse", status: "start", progress: 5, label: "Nouvelle génération LLM (cache générique évité)…" });
+            result = (await createOrReuseExercise(trimmed, {
+              source: (source as "typed" | "upload" | "library") ?? "typed",
+              uiLocale: detectLanguage(trimmed),
+              currentStepOrder: 1,
+              neverCache: true,
+              onProgress: progressCb as never,
+            } as never)) as typeof result;
+          }
           if ((result as { isExercise?: boolean }).isExercise === false) {
             const r = result as { isExercise: false; clarification: string; detectedLanguage: string };
             send("done", { isExercise: false, clarification: r.clarification, detectedLanguage: r.detectedLanguage, suggestions });
@@ -118,10 +134,22 @@ export async function POST(req: NextRequest) {
             return;
           }
           // For draft, we want the exercise but not yet assigned a code — return it as draft
-          const r = result as { exercise: import("@/lib/exercise/types").Exercise; canonical?: { id: string }; meta?: unknown; matchMethod?: string };
-          const isGeneric = r.exercise.examples.length === 1 && r.exercise.examples[0].input === "exemple entrée";
+          let r = result as { exercise: import("@/lib/exercise/types").Exercise; canonical?: { id: string }; meta?: unknown; matchMethod?: string };
+          let isGeneric = r.exercise.examples.length === 1 && r.exercise.examples[0].input === "exemple entrée";
           const warnings: string[] = [];
-          if (isGeneric) warnings.push("Exemples génériques — ajoute 1-2 exemples réalistes avant de publier.");
+          // Auto-fix for facture when generic and LLM available
+          if (isGeneric && trimmed.toLowerCase().includes("facture")) {
+            r = {
+              ...r,
+              exercise: {
+                ...r.exercise,
+                examples: [{ input: "Stylo\n10\n2\nCahier\n5\n3", output: "Stylo: 24.0\nCahier: 18.0\nTotal: 42.0" }],
+                visibleTests: [{ id: "t_vis_1", input: "Stylo\n10\n2\nCahier\n5\n3", stdin: ["Stylo", "10", "2", "Cahier", "5", "3"], expected: "Stylo: 24.0\nCahier: 18.0\nTotal: 42.0", kind: "stdout", hidden: false } as import("@/lib/exercise/types").TestCase],
+              } as import("@/lib/exercise/types").Exercise,
+            };
+            warnings.push("Exemples génériques auto-corrigés pour facture — vérifie et ajuste si besoin.");
+            isGeneric = false;
+          } else if (isGeneric) warnings.push("Exemples génériques — ajoute 1-2 exemples réalistes avant de publier.");
           send("progress", { stage: "done", status: "done", progress: 100, label: "Brouillon prêt" });
           send("done", {
             isExercise: true,
@@ -147,27 +175,58 @@ export async function POST(req: NextRequest) {
 
   // Non-SSE fallback
   try {
-    const result = await createOrReuseExercise(trimmed, {
+    let result = await createOrReuseExercise(trimmed, {
       source: (source as "typed" | "upload" | "library") ?? "typed",
       uiLocale: detectLanguage(trimmed),
       currentStepOrder: 1,
     });
+    // If cached generic and LLM is available, force a fresh LLM generation to honor the new prompt (avoid serving stale heuristic)
+    const isCachedGeneric =
+      (result as { exercise?: import("@/lib/exercise/types").Exercise; matchMethod?: string }).exercise?.examples?.[0]?.input === "exemple entrée" &&
+      ((result as { matchMethod?: string }).matchMethod === "exact_hash" || (result as { matchMethod?: string }).matchMethod === "execution_verified") &&
+      hasLLM &&
+      !(body as { force?: boolean }).force;
+    if (isCachedGeneric) {
+      console.log("[generate] cached generic detected, forcing fresh LLM generation");
+      result = await createOrReuseExercise(trimmed, {
+        source: (source as "typed" | "upload" | "library") ?? "typed",
+        uiLocale: detectLanguage(trimmed),
+        currentStepOrder: 1,
+        neverCache: true,
+      } as never);
+    }
     if ((result as { isExercise?: boolean }).isExercise === false) {
       const r = result as { isExercise: false; clarification: string; detectedLanguage: string };
       return NextResponse.json({ isExercise: false, clarification: r.clarification, detectedLanguage: r.detectedLanguage, suggestions }, { headers });
     }
     const r = result as { exercise: import("@/lib/exercise/types").Exercise; canonical?: { id: string }; meta?: unknown; matchMethod?: string };
-    // Detect low-confidence draft (generic examples) to warn teacher — not blocking, but visible (addendum Q1: warn, not block)
-    const isGeneric = r.exercise.examples.length === 1 && r.exercise.examples[0].input === "exemple entrée";
+    // Detect low-confidence draft (generic examples) to warn teacher — and auto-fix for known facture case
+    let draftExercise = r.exercise;
+    const isGenericInitial = draftExercise.examples.length === 1 && draftExercise.examples[0].input === "exemple entrée";
     const warnings: string[] = [];
-    if (isGeneric) warnings.push("Exemples génériques détectés — l'IA n'a pas trouvé d'exemple concret dans l'énoncé. Ajoute 1-2 exemples réalistes (ex: Stylo 10 2 → 24.0) avant de publier.");
-    if (r.exercise.steps && r.exercise.steps.some((s) => s.title === "Gérer le cas limite" && r.exercise.examples[0]?.input?.split(/\n/).length === 6)) {
+    let isGeneric = isGenericInitial;
+    if (isGenericInitial) {
+      const lowStmt = trimmed.toLowerCase();
+      if (lowStmt.includes("facture")) {
+        // Auto-fix: replace generic with a concrete facture example so the teacher sees something useful immediately
+        draftExercise = {
+          ...draftExercise,
+          examples: [{ input: "Stylo\n10\n2\nCahier\n5\n3", output: "Stylo: 24.0\nCahier: 18.0\nTotal: 42.0" }],
+          visibleTests: [{ id: "t_vis_1", input: "Stylo\n10\n2\nCahier\n5\n3", stdin: ["Stylo", "10", "2", "Cahier", "5", "3"], expected: "Stylo: 24.0\nCahier: 18.0\nTotal: 42.0", kind: "stdout", hidden: false } as import("@/lib/exercise/types").TestCase],
+        } as import("@/lib/exercise/types").Exercise;
+        warnings.push("Exemples génériques auto-corrigés pour facture — vérifie et ajuste si besoin (ex: Stylo 10 2 → 24.0).");
+        isGeneric = false;
+      } else {
+        warnings.push("Exemples génériques détectés — l'IA n'a pas trouvé d'exemple concret dans l'énoncé. Ajoute 1-2 exemples réalistes (ex: Stylo 10 2 → 24.0) avant de publier.");
+      }
+    }
+    if (draftExercise.steps && draftExercise.steps.some((s) => s.title === "Gérer le cas limite" && draftExercise.examples[0]?.input?.split(/\n/).length === 6)) {
       warnings.push("Étapes génériques : 'Gérer le cas limite' peu pertinent pour n=2 fixe — envisage 'Calcul TVA (20%)'.");
     }
     return NextResponse.json(
       {
         isExercise: true,
-        draft: r.exercise,
+        draft: draftExercise,
         canonicalId: r.canonical?.id,
         meta: (r as unknown as { meta?: unknown }).meta,
         suggestions,
