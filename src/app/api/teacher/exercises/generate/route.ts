@@ -111,9 +111,10 @@ export async function POST(req: NextRequest) {
             currentStepOrder: 1,
             onProgress: progressCb as never,
           }) as Awaited<ReturnType<typeof createOrReuseExercise>>;
-          // Bypass stale heuristic cache for teacher draft when LLM is available and result is generic
+          // Bypass stale heuristic cache for teacher draft when LLM is available and result is generic/empty
+          const exForCacheCheck = (result as { exercise?: import("@/lib/exercise/types").Exercise; matchMethod?: string }).exercise;
           const isCachedGenericForSse =
-            (result as { exercise?: import("@/lib/exercise/types").Exercise; matchMethod?: string }).exercise?.examples?.[0]?.input === "exemple entrée" &&
+            (exForCacheCheck?.examples?.length === 0 || exForCacheCheck?.examples?.[0]?.input === "exemple entrée") &&
             ((result as { matchMethod?: string }).matchMethod === "exact_hash" || (result as { matchMethod?: string }).matchMethod === "execution_verified") &&
             hasLLM &&
             !(body as { force?: boolean }).force;
@@ -135,9 +136,9 @@ export async function POST(req: NextRequest) {
           }
           // For draft, we want the exercise but not yet assigned a code — return it as draft
           let r = result as { exercise: import("@/lib/exercise/types").Exercise; canonical?: { id: string }; meta?: unknown; matchMethod?: string };
-          let isGeneric = r.exercise.examples.length === 1 && r.exercise.examples[0].input === "exemple entrée";
+          let isGeneric = r.exercise.examples.length === 0 || (r.exercise.examples.length === 1 && r.exercise.examples[0].input === "exemple entrée");
           const warnings: string[] = [];
-          // Auto-fix for facture when generic and LLM available
+          let genericWarning: { title: string; body: string; suggestion: { input: string; output: string } | null } | null = null;
           if (isGeneric && trimmed.toLowerCase().includes("facture")) {
             r = {
               ...r,
@@ -148,8 +149,43 @@ export async function POST(req: NextRequest) {
               } as import("@/lib/exercise/types").Exercise,
             };
             warnings.push("Exemples génériques auto-corrigés pour facture — vérifie et ajuste si besoin.");
+            genericWarning = {
+              title: "Exemples à compléter — les tests ne peuvent pas fonctionner",
+              body: "Ton énoncé ne donnait pas d'exemple chiffré, l'IA a laissé un placeholder. Ajoute 1 exemple réel.",
+              suggestion: { input: "Stylo\n10\n2\nCahier\n5\n3", output: "Stylo: 24.0\nCahier: 18.0\nTotal: 42.0" },
+            };
             isGeneric = false;
-          } else if (isGeneric) warnings.push("Exemples génériques — ajoute 1-2 exemples réalistes avant de publier.");
+          } else if (isGeneric && (trimmed.toLowerCase().includes("négatif") || trimmed.toLowerCase().includes("negatif") || trimmed.toLowerCase().includes("positif") || trimmed.includes("{1,-30"))) {
+            const m = trimmed.match(/\{[^}]+\}/);
+            const listStr = m ? m[0].replace(/[\{\}]/g, "").trim() : "1 -30 0 -2 500";
+            const nums = listStr.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean).map((n) => parseInt(n, 10)).filter((n) => !isNaN(n));
+            const neg = nums.filter((n) => n < 0);
+            const pos = nums.filter((n) => n > 0);
+            const out = [...neg, ...pos].join(" ");
+            const inp = nums.join(" ");
+            r = {
+              ...r,
+              exercise: {
+                ...r.exercise,
+                examples: [{ input: inp || listStr, output: out || "-30 -2 1 500" }],
+                visibleTests: [{ id: "t_vis_1", input: inp || listStr, stdin: (inp || listStr).split(/[ \n]+/), expected: out || "-30 -2 1 500", kind: "stdout", hidden: false } as import("@/lib/exercise/types").TestCase],
+              } as import("@/lib/exercise/types").Exercise,
+            };
+            warnings.push("Exemples génériques auto-corrigés pour cette liste — vérifie et ajuste.");
+            genericWarning = {
+              title: "Exemples à compléter — les tests ne peuvent pas fonctionner",
+              body: "Ton énoncé ne donnait pas d'exemple chiffré. Ajoute 1 exemple réel avec la liste et le résultat attendu.",
+              suggestion: { input: inp || "1 -30 0 -2 500", output: out || "-30 -2 1 500" },
+            };
+            isGeneric = false;
+          } else if (isGeneric) {
+            warnings.push("Exemples génériques — ajoute 1-2 exemples réalistes avant de publier.");
+            genericWarning = {
+              title: "Exemples à compléter — les tests ne peuvent pas fonctionner",
+              body: "Ton énoncé ne donnait pas d'exemple chiffré, l'IA a laissé un placeholder. Ajoute 1 exemple réel avec une entrée et la sortie attendue.",
+              suggestion: null,
+            };
+          }
           send("progress", { stage: "done", status: "done", progress: 100, label: "Brouillon prêt" });
           send("done", {
             isExercise: true,
@@ -160,6 +196,7 @@ export async function POST(req: NextRequest) {
             matchMethod: r.matchMethod,
             warnings: warnings.length ? warnings : undefined,
             isGeneric,
+            genericWarning,
           });
         } catch (e) {
           send("error", { error: e instanceof Error ? e.message : String(e) });
@@ -180,14 +217,15 @@ export async function POST(req: NextRequest) {
       uiLocale: detectLanguage(trimmed),
       currentStepOrder: 1,
     });
-    // If cached generic and LLM is available, force a fresh LLM generation to honor the new prompt (avoid serving stale heuristic)
+    // If cached generic/empty and LLM is available, force a fresh LLM generation to honor the new prompt (avoid serving stale heuristic)
+    const cachedEx = (result as { exercise?: import("@/lib/exercise/types").Exercise; matchMethod?: string }).exercise;
     const isCachedGeneric =
-      (result as { exercise?: import("@/lib/exercise/types").Exercise; matchMethod?: string }).exercise?.examples?.[0]?.input === "exemple entrée" &&
+      (cachedEx?.examples?.length === 0 || cachedEx?.examples?.[0]?.input === "exemple entrée") &&
       ((result as { matchMethod?: string }).matchMethod === "exact_hash" || (result as { matchMethod?: string }).matchMethod === "execution_verified") &&
       hasLLM &&
       !(body as { force?: boolean }).force;
     if (isCachedGeneric) {
-      console.log("[generate] cached generic detected, forcing fresh LLM generation");
+      console.log("[generate] cached generic/empty detected, forcing fresh LLM generation");
       result = await createOrReuseExercise(trimmed, {
         source: (source as "typed" | "upload" | "library") ?? "typed",
         uiLocale: detectLanguage(trimmed),
@@ -200,24 +238,58 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ isExercise: false, clarification: r.clarification, detectedLanguage: r.detectedLanguage, suggestions }, { headers });
     }
     const r = result as { exercise: import("@/lib/exercise/types").Exercise; canonical?: { id: string }; meta?: unknown; matchMethod?: string };
-    // Detect low-confidence draft (generic examples) to warn teacher — and auto-fix for known facture case
+    // Detect low-confidence draft (generic or empty examples) to warn teacher — and auto-fix for known patterns
     let draftExercise = r.exercise;
-    const isGenericInitial = draftExercise.examples.length === 1 && draftExercise.examples[0].input === "exemple entrée";
+    const isGenericInitial = draftExercise.examples.length === 0 || (draftExercise.examples.length === 1 && draftExercise.examples[0].input === "exemple entrée");
     const warnings: string[] = [];
+    // Structured warnings for the UI to render contextually (field + suggestion)
+    let genericWarning: { title: string; body: string; suggestion: { input: string; output: string } | null } | null = null;
     let isGeneric = isGenericInitial;
     if (isGenericInitial) {
       const lowStmt = trimmed.toLowerCase();
       if (lowStmt.includes("facture")) {
-        // Auto-fix: replace generic with a concrete facture example so the teacher sees something useful immediately
         draftExercise = {
           ...draftExercise,
           examples: [{ input: "Stylo\n10\n2\nCahier\n5\n3", output: "Stylo: 24.0\nCahier: 18.0\nTotal: 42.0" }],
           visibleTests: [{ id: "t_vis_1", input: "Stylo\n10\n2\nCahier\n5\n3", stdin: ["Stylo", "10", "2", "Cahier", "5", "3"], expected: "Stylo: 24.0\nCahier: 18.0\nTotal: 42.0", kind: "stdout", hidden: false } as import("@/lib/exercise/types").TestCase],
         } as import("@/lib/exercise/types").Exercise;
         warnings.push("Exemples génériques auto-corrigés pour facture — vérifie et ajuste si besoin (ex: Stylo 10 2 → 24.0).");
+        genericWarning = {
+          title: "Exemples à compléter — les tests ne peuvent pas fonctionner",
+          body: "Ton énoncé ne donnait pas d'exemple chiffré, l'IA a laissé un placeholder. Ajoute 1 exemple réel.",
+          suggestion: { input: "Stylo\n10\n2\nCahier\n5\n3", output: "Stylo: 24.0\nCahier: 18.0\nTotal: 42.0" },
+        };
+        isGeneric = false;
+      } else if (lowStmt.includes("négatif") || lowStmt.includes("negatif") || lowStmt.includes("positif") || lowStmt.includes("{1,-30")) {
+        // Auto-fix for list partition: use the list from the statement itself
+        const m = trimmed.match(/\{[^}]+\}/);
+        const listStr = m ? m[0].replace(/[\{\}]/g, "").trim() : "1 -30 0 -2 500";
+        // Build output: negatives first in order, then positives
+        const nums = listStr.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
+        const numsInt = nums.map((n) => parseInt(n, 10)).filter((n) => !isNaN(n));
+        const neg = numsInt.filter((n) => n < 0);
+        const pos = numsInt.filter((n) => n > 0);
+        const out = [...neg, ...pos].join(" ");
+        const inp = numsInt.join(" ");
+        draftExercise = {
+          ...draftExercise,
+          examples: [{ input: inp || listStr, output: out || "-30 -2 1 500" }],
+          visibleTests: [{ id: "t_vis_1", input: inp || listStr, stdin: (inp || listStr).split(/[ \n]+/), expected: out || "-30 -2 1 500", kind: "stdout", hidden: false } as import("@/lib/exercise/types").TestCase],
+        } as import("@/lib/exercise/types").Exercise;
+        warnings.push("Exemples génériques auto-corrigés pour cette liste — vérifie et ajuste.");
+        genericWarning = {
+          title: "Exemples à compléter — les tests ne peuvent pas fonctionner",
+          body: "Ton énoncé ne donnait pas d'exemple chiffré. Ajoute 1 exemple réel avec la liste et le résultat attendu.",
+          suggestion: { input: inp || "1 -30 0 -2 500", output: out || "-30 -2 1 500" },
+        };
         isGeneric = false;
       } else {
-        warnings.push("Exemples génériques détectés — l'IA n'a pas trouvé d'exemple concret dans l'énoncé. Ajoute 1-2 exemples réalistes (ex: Stylo 10 2 → 24.0) avant de publier.");
+        warnings.push("Exemples génériques détectés — l'IA n'a pas trouvé d'exemple concret dans l'énoncé. Ajoute 1-2 exemples réalistes avant de publier.");
+        genericWarning = {
+          title: "Exemples à compléter — les tests ne peuvent pas fonctionner",
+          body: "Ton énoncé ne donnait pas d'exemple chiffré, l'IA a laissé un placeholder. Ajoute 1 exemple réel avec une entrée et la sortie attendue.",
+          suggestion: null,
+        };
       }
     }
     if (draftExercise.steps && draftExercise.steps.some((s) => s.title === "Gérer le cas limite" && draftExercise.examples[0]?.input?.split(/\n/).length === 6)) {
@@ -233,6 +305,7 @@ export async function POST(req: NextRequest) {
         matchMethod: r.matchMethod,
         warnings: warnings.length ? warnings : undefined,
         isGeneric,
+        genericWarning,
       },
       { headers }
     );

@@ -245,12 +245,38 @@ export function extractExamples(text: string): ExerciseExample[] {
   }
 
   if (examples.length === 0) {
+    // Try to extract list literal like {1,-30,0,-2,500,4,2,100} for partition exercises
+    const listMatch = text.match(/L\s*(?:une liste)?[^:]*:\s*\{([^}]+)\}/i) ?? text.match(/\{[0-9,\s\-]+\}/);
+    if (listMatch) {
+      const raw = listMatch[1] ?? listMatch[0].replace(/[\{\}]/g, "");
+      const nums = raw.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
+      if (nums.length >= 2) {
+        const numsInt = nums.map((n) => parseInt(n, 10)).filter((n) => !isNaN(n));
+        if (numsInt.length >= 2) {
+          const neg = numsInt.filter((n) => n < 0);
+          const pos = numsInt.filter((n) => n > 0);
+          const input = numsInt.join(" ");
+          const output = [...neg, ...pos].join(" ");
+          // Also provide newline variant
+          examples.push({ input, output: output || "-30 -2 1 500" });
+          if (examples.length < 3) {
+            // Also add the original curly format as alternative
+            examples.push({ input: numsInt.join("\n"), output });
+          }
+        }
+      }
+    }
+  }
+
+  if (examples.length === 0) {
     if (isAuthExercise(text)) {
       examples.push({ input: "admin\nadmin", output: "Bienvenue" }, { input: "user\npass", output: "incorrecte" });
     } else if (isVitesseExercise(text)) {
       examples.push({ input: "1\n1", output: "16.67" }, { input: "10\n5", output: "33.33" });
     } else if (/somme|sum|addition|a\s*\+\s*b/i.test(text)) {
       examples.push({ input: "2 3", output: "5" }, { input: "0 0", output: "0" });
+    } else if (/facture|tva/i.test(text)) {
+      examples.push({ input: "Stylo\n10\n2\nCahier\n5\n3", output: "Stylo: 24.0\nCahier: 18.0\nTotal: 42.0" });
     } else {
       examples.push({ input: "exemple entrée", output: "exemple sortie" });
     }
