@@ -39,26 +39,48 @@ export default function StudentJoinPage() {
   }
 
   return (
-    <div className="mx-auto max-w-md px-4 py-12">
-      <h1 className="text-2xl font-bold">Rejoindre un exercice</h1>
-      <p className="mt-1 text-sm text-zinc-600">Entre le code donné par ton enseignant (ex: PY-7X2K) et ton prénom. Pas de compte nécessaire.</p>
-      <form onSubmit={handleJoin} className="mt-6 space-y-4">
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium">Code de l'exercice</span>
-          <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="PY-7X2K" className="rounded-xl border border-black/10 bg-zinc-50 px-3 py-2 font-mono text-sm tracking-widest" required pattern="PY-[A-Z0-9]{4}" />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium">Ton prénom (affiché au prof)</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Yasmine" className="rounded-xl border border-black/10 bg-zinc-50 px-3 py-2 text-sm" required maxLength={30} />
-        </label>
-        <button disabled={loading} type="submit" className="w-full rounded-full bg-emerald-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
-          {loading ? "Connexion…" : "Rejoindre →"}
-        </button>
-      </form>
-      {error ? <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
-      <p className="mt-6 text-xs text-zinc-500">
-        Astuce : ton navigateur garde un <code>join_token</code> en localStorage. Si tu reviens sur le même appareil, tu reprends la même identité sans ressaisir. Sur un autre appareil, ressaisis le même code + même prénom — une nouvelle ligne apparaîtra côté prof (MVP).
-      </p>
+    <div className="mx-auto max-w-md px-4 py-12 sm:px-6">
+      <div className="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-indigo-50 p-6 text-center dark:border-sky-900 dark:from-sky-950 dark:to-indigo-950">
+        <p className="text-xs font-medium uppercase tracking-widest text-sky-700 dark:text-sky-300">Mode classe</p>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">Rejoindre un exercice</h1>
+        <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-zinc-600 dark:text-zinc-400">Entre le code affiché au tableau et ton prénom. Pas d'email, pas de mot de passe — juste ton prénom pour que le prof te reconnaisse.</p>
+      </div>
+      <div className="mt-6 rounded-2xl border border-black/10 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-zinc-900">
+        <form onSubmit={handleJoin} className="space-y-4">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium">Code de l'exercice</span>
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              placeholder="PY-7X2K"
+              className="rounded-xl border border-black/10 bg-zinc-50 px-3 py-3 font-mono text-base tracking-[0.2em] text-center font-bold uppercase placeholder:tracking-normal placeholder:font-normal placeholder:text-sm dark:border-white/10 dark:bg-zinc-800"
+              required
+              pattern="PY-[A-Z0-9]{4}"
+              maxLength={7}
+              autoComplete="off"
+              autoCapitalize="characters"
+            />
+            <span className="text-xs text-zinc-500">Exemple au tableau : PY-7X2K</span>
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium">Ton prénom</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Yasmine" className="rounded-xl border border-black/10 bg-zinc-50 px-3 py-3 text-sm dark:border-white/10 dark:bg-zinc-800" required maxLength={30} autoComplete="given-name" />
+            <span className="text-xs text-zinc-500">Affiché tel quel dans le tableau du prof.</span>
+          </label>
+          <button disabled={loading} type="submit" className="w-full rounded-full bg-emerald-600 px-6 py-3 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50">
+            {loading ? "Connexion…" : "Rejoindre et commencer →"}
+          </button>
+        </form>
+        {error ? <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-200">{error}</p> : null}
+      </div>
+      <div className="mt-6 rounded-xl bg-zinc-50 p-4 text-xs leading-5 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+        <p className="font-medium">Comment ça marche ?</p>
+        <ul className="mt-1 list-disc space-y-1 pl-5">
+          <li>Ton navigateur garde un <code className="rounded bg-white px-1 py-0.5 font-mono text-xs dark:bg-zinc-900">join_token</code> en localStorage.</li>
+          <li>Reviens sur le même appareil → tu reprends la même ligne côté prof.</li>
+          <li>Nouvel appareil → même code + même prénom = nouvelle ligne (MVP, acceptable).</li>
+        </ul>
+      </div>
     </div>
   );
 }
