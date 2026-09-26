@@ -80,6 +80,9 @@ export type Session = {
   status: "in_progress" | "completed" | "abandoned";
   startedAt: string;
   finishedAt?: string;
+  // Teacher pivot: lightweight per-exercise identity, nullable to keep practice mode (addendum Q1)
+  student_identity_id?: string | null;
+  studentIdentityId?: string | null; // alias for convenience
 };
 
 export type ParseRequest = {

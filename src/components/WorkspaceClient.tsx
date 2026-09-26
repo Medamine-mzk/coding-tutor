@@ -34,43 +34,81 @@ export function WorkspaceClient() {
   const [errorHint, setErrorHint] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"exercise" | "editor" | "tutor">("editor");
   const [largePasteNotice, setLargePasteNotice] = useState<string | null>(null);
+  const [isTeacherMode, setIsTeacherMode] = useState(false);
   const [loadedExercise, setLoadedExercise] = useState<null | { id: string; title: string; statement: string; ioSpec: string; constraints: string[]; examples: Array<{ input: string; output: string }>; concepts: string[]; difficulty: number; uiLocale?: string; visibleTests?: TestCase[]; hiddenTests?: TestCase[]; milestones?: Array<{ id: string; exerciseId: string; order: number; title: string; successCriteria: string; hintSeeds: string[] }> }>(null);
 
   const runner = useMemo(() => new PythonRunner(), []);
 
   useEffect(() => {
+    // Detect teacher mode for banner (after mount to avoid SSR mismatch)
     try {
-      const raw = localStorage.getItem("currentExercise");
-      if (raw) {
-        const parsed = JSON.parse(raw) as typeof loadedExercise & { statement?: string; title?: string };
-        // Fix for ex_h308z92 (vitesse) and login exercises that were parsed with generic fallback
-        const stmt = parsed?.statement ?? "";
-        const lowStmt = stmt.toLowerCase();
-        const isGenericTitle = parsed?.title === "New exercise" || parsed?.title === "Nouvel exercice" || parsed?.title === "Exercice sans titre" || parsed?.title === "New exercise";
-        const isVitesse = lowStmt.includes("vitesse") && lowStmt.includes("distance");
-        const isAuth = (lowStmt.includes("login") || lowStmt.includes("mot de passe")) && lowStmt.includes("admin");
-        if (isGenericTitle && (isVitesse || isAuth)) {
-          const rebuilt = buildExerciseFromHeuristics(stmt, "typed", (parsed as unknown as { uiLocale?: string })?.uiLocale as never);
-          rebuilt.id = parsed?.id ?? rebuilt.id;
-          // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate and fix corrupted exercise
-          setLoadedExercise(rebuilt as typeof loadedExercise);
-          localStorage.setItem("currentExercise", JSON.stringify(rebuilt));
-          if (code === DEFAULT_CODE || code.includes("a = int(input")) {
-            setCode(generateSkeleton(rebuilt));
-          }
-          return;
-        }
-        setLoadedExercise(parsed);
-        if (parsed && (code === DEFAULT_CODE || code.includes('a = int(input("a: "))'))) {
-          try {
-            const skeleton = generateSkeleton(parsed as unknown as import("@/lib/exercise/types").Exercise);
-            if (skeleton.trim() !== code.trim()) {
-              setCode(skeleton);
-            }
-          } catch {}
-        }
-      }
+      if (localStorage.getItem("student_join_token")) setIsTeacherMode(true);
     } catch {}
+    // Teacher flow: if join_token in URL or localStorage, fetch teacher's exercise
+    // Keep sync fallback for practice mode (paste) so tests see milestones immediately
+    const urlParams = new URLSearchParams(window.location.search);
+    const joinTokenFromUrl = urlParams.get("join_token") ?? urlParams.get("joinToken");
+    const joinToken = joinTokenFromUrl ?? (() => { try { return localStorage.getItem("student_join_token"); } catch { return null; } })();
+    if (joinToken) {
+      if (!isTeacherMode) setIsTeacherMode(true);
+      (async () => {
+        try {
+          const res = await fetch(`/api/student/exercise?join_token=${encodeURIComponent(joinToken)}`);
+          if (res.ok) {
+            const data = (await res.json()) as { exercise: import("@/lib/exercise/types").Exercise };
+            if (data.exercise) {
+              setLoadedExercise(data.exercise as unknown as typeof loadedExercise);
+              try {
+                const skeleton = generateSkeleton(data.exercise as unknown as import("@/lib/exercise/types").Exercise);
+                if (code === DEFAULT_CODE || code.includes('a = int(input("a: "))')) {
+                  setCode(skeleton);
+                }
+              } catch {}
+              return;
+            }
+          }
+        } catch {}
+        // Fallback to localStorage if teacher fetch fails
+        tryLoadFromStorage();
+      })();
+      return;
+    }
+
+    function tryLoadFromStorage() {
+      try {
+        const raw = localStorage.getItem("currentExercise");
+        if (raw) {
+          const parsed = JSON.parse(raw) as typeof loadedExercise & { statement?: string; title?: string };
+          const stmt = parsed?.statement ?? "";
+          const lowStmt = stmt.toLowerCase();
+          const isGenericTitle = parsed?.title === "New exercise" || parsed?.title === "Nouvel exercice" || parsed?.title === "Exercice sans titre" || parsed?.title === "New exercise";
+          const isVitesse = lowStmt.includes("vitesse") && lowStmt.includes("distance");
+          const isAuth = (lowStmt.includes("login") || lowStmt.includes("mot de passe")) && lowStmt.includes("admin");
+          if (isGenericTitle && (isVitesse || isAuth)) {
+            const rebuilt = buildExerciseFromHeuristics(stmt, "typed", (parsed as unknown as { uiLocale?: string })?.uiLocale as never);
+            rebuilt.id = parsed?.id ?? rebuilt.id;
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate and fix corrupted exercise
+            setLoadedExercise(rebuilt as typeof loadedExercise);
+            localStorage.setItem("currentExercise", JSON.stringify(rebuilt));
+            if (code === DEFAULT_CODE || code.includes("a = int(input")) {
+              setCode(generateSkeleton(rebuilt));
+            }
+            return;
+          }
+          setLoadedExercise(parsed);
+          if (parsed && (code === DEFAULT_CODE || code.includes('a = int(input("a: "))'))) {
+            try {
+              const skeleton = generateSkeleton(parsed as unknown as import("@/lib/exercise/types").Exercise);
+              if (skeleton.trim() !== code.trim()) {
+                setCode(skeleton);
+              }
+            } catch {}
+          }
+        }
+      } catch {}
+    }
+
+    tryLoadFromStorage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -161,6 +199,31 @@ export function WorkspaceClient() {
 
   const isCompleted = !!(testReport && testReport.total > 0 && testReport.passed === testReport.total);
 
+  // Teacher dashboard: report current step to server when milestones change
+  // Reads student_join_token + currentSessionId from localStorage (set by /student/join)
+  useEffect(() => {
+    if (!milestoneStatuses || !loadedExercise) return;
+    const sessionId = localStorage.getItem("currentSessionId");
+    if (!sessionId) return; // practice mode (no teacher) — nothing to report
+    const completed = milestoneStatuses.filter((s) => s.completed).length;
+    // currentStepOrder is 1-indexed, next step to do
+    const nextOrder = Math.min(milestoneStatuses.length, completed + 1);
+    // Don't spam: only report when step advances or completion
+    const lastReported = (window as unknown as { __lastReportedStep?: number }).__lastReportedStep;
+    if (lastReported === nextOrder && !isCompleted) return;
+    (window as unknown as { __lastReportedStep?: number }).__lastReportedStep = nextOrder;
+    fetch(`/api/student/session/${encodeURIComponent(sessionId)}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        currentStepOrder: nextOrder,
+        currentCode: code.slice(0, 2000), // store snippet for dashboard, not full code
+        status: isCompleted ? "completed" : "in_progress",
+        ...(isCompleted ? { finishedAt: new Date().toISOString() } : {}),
+      }),
+    }).catch(() => {});
+  }, [milestoneStatuses, isCompleted, code, loadedExercise]);
+
   async function handleRunTests() {
     setRunning(true);
     const report = await runner.runTests(code, demoTests);
@@ -186,6 +249,11 @@ export function WorkspaceClient() {
         <div role="region" aria-label={t("workspace.exercise") + " & " + (t("workspace.steps") ?? "Steps")} className={`${activeTab !== "exercise" ? "hidden lg:flex" : "flex"} flex-col gap-4`}>
           <div className="rounded-2xl border border-black/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
             <h2 className="font-semibold">{loadedExercise?.title ?? t("workspace.exercise")}</h2>
+            {isTeacherMode ? (
+              <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700 ring-1 ring-sky-200 dark:bg-sky-950 dark:text-sky-300">
+                Mode classe — progression partagée avec l'enseignant
+              </p>
+            ) : null}
             <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{loadedExercise ? loadedExercise.statement.slice(0, 160) : "Exemple : lire deux entiers et afficher leur somme."}</p>
             <div className="mt-3 rounded-xl bg-zinc-50 p-3 text-sm dark:bg-zinc-800">
               <p className="font-medium">Enonce</p>
