@@ -24,17 +24,17 @@ export function TestRunner({ tests, report, running }: Props) {
             {report.passed}/{report.total} passés
           </span>
         ) : (
-          <span className="text-xs text-zinc-500">Pas encore exécuté</span>
+          <span className="text-xs text-zinc-600">Pas encore exécuté</span>
         )}
       </div>
 
-      {running ? <p className="mt-2 text-xs text-zinc-500">Exécution…</p> : null}
+      {running ? <p className="mt-2 text-xs text-zinc-600">Exécution…</p> : null}
 
       {/* Visible tests */}
       <div className="mt-3">
         <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Tests visibles</p>
         <ul className="mt-1 space-y-1" data-testid="visible-tests">
-          {visible.length === 0 ? <li className="text-xs text-zinc-500">Aucun test visible</li> : null}
+          {visible.length === 0 ? <li className="text-xs text-zinc-600">Aucun test visible</li> : null}
           {visible.map((t) => {
             const r = reportMap.get(t.id);
             const passed = r?.passed;
@@ -43,7 +43,7 @@ export function TestRunner({ tests, report, running }: Props) {
               <li key={t.id} data-testid={`test-${t.id}`} className={`flex flex-col gap-1 rounded-lg border px-2 py-2 text-sm ${passed === true ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950" : passed === false ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950" : "border-black/5 bg-zinc-50 dark:border-white/10 dark:bg-zinc-800"}`}>
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-xs">{t.id}</span>
-                  <span className={`text-xs font-medium ${passed === true ? "text-emerald-700 dark:text-emerald-300" : passed === false ? "text-red-700 dark:text-red-300" : "text-zinc-500"}`}>{isPending ? "—" : passed ? "✓ pass" : "✗ fail"}</span>
+                  <span className={`text-xs font-medium ${passed === true ? "text-emerald-700 dark:text-emerald-300" : passed === false ? "text-red-700 dark:text-red-300" : "text-zinc-600"}`}>{isPending ? "—" : passed ? "✓ pass" : "✗ fail"}</span>
                 </div>
                 {r && !r.passed ? (
                   <div className="grid gap-1 text-xs">
@@ -58,9 +58,9 @@ export function TestRunner({ tests, report, running }: Props) {
                 ) : r && r.passed ? (
                   <p className="text-xs text-zinc-600 dark:text-zinc-400">Sortie correcte ✓</p>
                 ) : (
-                  <p className="text-xs text-zinc-500">En attente d&apos;exécution</p>
+                  <p className="text-xs text-zinc-600">En attente d&apos;exécution</p>
                 )}
-                <p className="text-xs text-zinc-500">Input: <span className="font-mono">{t.input ?? t.stdin?.join(" ") ?? "—"}</span> → Expected: <span className="font-mono">{t.expected}</span></p>
+                <p className="text-xs text-zinc-600">Input: <span className="font-mono">{t.input ?? t.stdin?.join(" ") ?? "—"}</span> → Expected: <span className="font-mono">{t.expected}</span></p>
               </li>
             );
           })}
@@ -70,9 +70,9 @@ export function TestRunner({ tests, report, running }: Props) {
       {/* Hidden tests */}
       <div className="mt-4">
         <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Tests cachés (évaluation)</p>
-        <p className="text-xs text-zinc-500">Ne révèlent jamais l&apos;entrée/sortie au-delà de la catégorie.</p>
+        <p className="text-xs text-zinc-600">Ne révèlent jamais l&apos;entrée/sortie au-delà de la catégorie.</p>
         <ul className="mt-1 space-y-1" data-testid="hidden-tests">
-          {hidden.length === 0 ? <li className="text-xs text-zinc-500">Aucun test caché</li> : null}
+          {hidden.length === 0 ? <li className="text-xs text-zinc-600">Aucun test caché</li> : null}
           {hidden.map((t) => {
             const r = reportMap.get(t.id);
             const passed = r?.passed;
@@ -80,7 +80,7 @@ export function TestRunner({ tests, report, running }: Props) {
             return (
               <li key={t.id} data-testid={`test-${t.id}`} className={`flex items-center justify-between rounded-lg border px-2 py-1.5 text-sm ${passed === true ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950" : passed === false ? "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950" : "border-black/5 bg-zinc-50 dark:border-white/10 dark:bg-zinc-800"}`}>
                 <span className="font-mono text-xs">{t.id} · {t.category ?? "edge case"}</span>
-                <span className={`text-xs ${passed === true ? "text-emerald-700 dark:text-emerald-300" : passed === false ? "text-amber-700 dark:text-amber-300" : "text-zinc-500"}`}>
+                <span className={`text-xs ${passed === true ? "text-emerald-700 dark:text-emerald-300" : passed === false ? "text-amber-700 dark:text-amber-300" : "text-zinc-600"}`}>
                   {isPending ? "—" : passed ? "✓ pass" : `✗ fail: ${t.category ?? "hidden"}`}
                 </span>
               </li>

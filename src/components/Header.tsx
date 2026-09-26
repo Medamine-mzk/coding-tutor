@@ -1,19 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { LocaleSwitcher } from "./LocaleSwitcher";
 import { useI18n } from "@/lib/i18n";
 import { useEffect, useState } from "react";
 
 export function Header() {
   const { t } = useI18n();
-  const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time mount flag to avoid pathname hydration mismatch
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- for theme locale hydration
     setMounted(true);
   }, []);
 

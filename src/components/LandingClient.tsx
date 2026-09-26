@@ -238,8 +238,8 @@ export function LandingClient() {
                 {t("landing.library")}
               </Link>
             </div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-500">{t("landing.principles")}</p>
-            <p className="text-xs text-zinc-500">{t("landing.pivotSubtitle")}</p>
+            <p className="text-xs text-zinc-600 dark:text-zinc-400">{t("landing.principles")}</p>
+            <p className="text-xs text-zinc-600">{t("landing.pivotSubtitle")}</p>
           </div>
 
           <div id="pivot" className="flex flex-col gap-4">
@@ -282,7 +282,7 @@ export function LandingClient() {
               onInput={(e) => setExerciseText((e.target as HTMLTextAreaElement).value)}
               placeholder={t("landing.pastePlaceholder")}
               rows={8}
-              className="mt-4 w-full resize-none rounded-xl border border-black/10 bg-zinc-50 p-4 text-sm placeholder:text-zinc-400 focus:border-zinc-300 focus:bg-white focus:outline-none dark:border-white/10 dark:bg-zinc-800 dark:placeholder:text-zinc-500 dark:focus:border-zinc-700 dark:focus:bg-zinc-900"
+              className="mt-4 w-full resize-none rounded-xl border border-black/10 bg-zinc-50 p-4 text-sm placeholder:text-zinc-400 focus:border-zinc-300 focus:bg-white focus:outline-none dark:border-white/10 dark:bg-zinc-800 dark:placeholder:text-zinc-400 dark:focus:border-zinc-700 dark:focus:bg-zinc-900"
               dir={dir}
               data-testid="landing-textarea"
             />
@@ -292,7 +292,7 @@ export function LandingClient() {
                 onClick={handleParse}
                 data-testid="btn-parse"
                 title={!exerciseText.trim() ? "Colle d'abord l'énoncé" : undefined}
-                className="flex-1 rounded-full bg-emerald-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:disabled:bg-zinc-700"
+                className="flex-1 rounded-full bg-emerald-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400 dark:disabled:bg-zinc-700"
               >
                 {loading ? "Analyse…" : t("landing.choosePython")}
               </button>
@@ -304,11 +304,11 @@ export function LandingClient() {
                   <span className="font-medium text-zinc-700 dark:text-zinc-300">
                     {progressStage || (loading ? (locale === "ar" ? "Analyse…" : locale === "en" ? "Analyzing…" : "Analyse…") : "")}
                   </span>
-                  <span className="tabular-nums text-zinc-500">{progress > 0 ? `${Math.round(progress)}%` : ""}</span>
+                  <span className="tabular-nums text-zinc-600">{progress > 0 ? `${Math.round(progress)}%` : ""}</span>
                 </div>
                 <div role="progressbar" aria-valuenow={Math.round(progress)} aria-valuemin={0} aria-valuemax={100} className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
                   <div
-                    className={`h-full rounded-full transition-all duration-300 ${progressMode === "cache" ? "bg-sky-500" : progressMode === "llm" ? "bg-emerald-500" : progressMode === "heuristic" ? "bg-amber-500" : "bg-emerald-500"}`}
+                    className={`h-full rounded-full transition-all duration-300 ${progressMode === "cache" ? "bg-sky-500" : progressMode === "llm" ? "bg-emerald-500" : progressMode === "heuristic" ? "bg-amber-600" : "bg-emerald-500"}`}
                     style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
                   />
                 </div>
@@ -325,7 +325,7 @@ export function LandingClient() {
                     >
                       {progressMode === "llm" ? "LLM" : progressMode === "cache" ? "Cache" : "Local"}
                     </span>
-                    <span className="text-zinc-500">
+                    <span className="text-zinc-600">
                       {progressMode === "llm"
                         ? locale === "ar" ? "IA distante" : locale === "en" ? "remote AI" : "IA distante"
                         : progressMode === "cache"

@@ -64,7 +64,7 @@ export default function TeacherDashboard() {
         {exercises.length === 0 ? (
           <div className="mt-4 rounded-2xl border border-dashed border-black/10 bg-zinc-50 p-8 text-center dark:border-white/10 dark:bg-zinc-900">
             <p className="text-sm font-medium">Aucun exercice pour l'instant</p>
-            <p className="mt-1 text-sm text-zinc-500">Créez votre premier exercice en mode manuel (le plus rapide), ou laissez l'IA structurer un énoncé, ou importez un bundle `exercise.md` + `steps.json`.</p>
+            <p className="mt-1 text-sm text-zinc-600">Créez votre premier exercice en mode manuel (le plus rapide), ou laissez l'IA structurer un énoncé, ou importez un bundle `exercise.md` + `steps.json`.</p>
             <Link href="/teacher/exercises/new" className="mt-4 inline-flex rounded-full bg-zinc-900 px-4 py-2 text-sm text-white">
               Créer un exercice →
             </Link>
@@ -81,8 +81,8 @@ export default function TeacherDashboard() {
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                   <span className="inline-flex items-center gap-1 rounded-full bg-zinc-900 px-2.5 py-1 font-mono font-bold tracking-widest text-white dark:bg-white dark:text-zinc-900">{ex.code}</span>
-                  <span className={`rounded-full px-2 py-0.5 ring-1 ${ex.visibility === "public_library" ? "bg-sky-50 text-sky-700 ring-sky-200" : "bg-zinc-100 text-zinc-700 ring-black/5"}`}>{ex.visibility === "public_library" ? "public" : "code only"}</span>
-                  <span className="text-zinc-500">{new Date(ex.created_at).toLocaleDateString("fr-TN")}</span>
+                  <span className={`rounded-full px-2 py-0.5 ring-1 ${ex.visibility === "public_library" ? "bg-sky-50 text-sky-700 ring-sky-200" : "bg-zinc-100 text-zinc-700 ring-black/5 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-white/10"}`}>{ex.visibility === "public_library" ? "public" : "code only"}</span>
+                  <span className="text-zinc-600">{new Date(ex.created_at).toLocaleDateString("fr-TN")}</span>
                 </div>
                 <div className="mt-4 flex gap-2">
                   <Link href={`/teacher/exercises/${ex.id}`} className="flex-1 rounded-full border border-black/10 px-3 py-1.5 text-center text-xs font-medium hover:bg-zinc-50 dark:border-white/10">

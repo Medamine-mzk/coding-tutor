@@ -60,12 +60,12 @@ export default function StudentJoinPage() {
               autoComplete="off"
               autoCapitalize="characters"
             />
-            <span className="text-xs text-zinc-500">Exemple au tableau : PY-7X2K</span>
+            <span className="text-xs text-zinc-600">Exemple au tableau : PY-7X2K</span>
           </label>
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium">Ton prénom</span>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Yasmine" className="rounded-xl border border-black/10 bg-zinc-50 px-3 py-3 text-sm dark:border-white/10 dark:bg-zinc-800" required maxLength={30} autoComplete="given-name" />
-            <span className="text-xs text-zinc-500">Affiché tel quel dans le tableau du prof.</span>
+            <span className="text-xs text-zinc-600">Affiché tel quel dans le tableau du prof.</span>
           </label>
           <button disabled={loading} type="submit" className="w-full rounded-full bg-emerald-600 px-6 py-3 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50">
             {loading ? "Connexion…" : "Rejoindre et commencer →"}

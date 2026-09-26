@@ -66,7 +66,7 @@ export function ExerciseConfirm({ exercise: initial, onConfirm, onCancel, meta }
               >
                 {(meta as { parseMode?: string }).parseMode === "llm" ? "LLM" : (meta as { parseMode?: string }).parseMode === "cache" ? "Cache" : "Local"}
               </span>
-              <span className="text-zinc-500">
+              <span className="text-zinc-600">
                 {(meta as { parseMode?: string }).parseMode === "llm"
                   ? locale === "ar" ? "IA distante" : locale === "en" ? "remote AI" : "IA distante"
                   : (meta as { parseMode?: string }).parseMode === "cache"
@@ -145,18 +145,18 @@ export function ExerciseConfirm({ exercise: initial, onConfirm, onCancel, meta }
             {ex.examples.map((eg, idx) => (
               <div key={idx} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
                 <label className="flex flex-col gap-1">
-                  <span className="text-xs text-zinc-500">Input {idx + 1}</span>
+                  <span className="text-xs text-zinc-600">Input {idx + 1}</span>
                   <input value={eg.input} onChange={(e) => updateExample(idx, "input", e.target.value)} className="rounded-lg border border-black/10 bg-zinc-50 px-2 py-1.5 font-mono text-sm dark:border-white/10 dark:bg-zinc-800" data-testid={`example-input-${idx}`} />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-xs text-zinc-500">Output {idx + 1}</span>
+                  <span className="text-xs text-zinc-600">Output {idx + 1}</span>
                   <input value={eg.output} onChange={(e) => updateExample(idx, "output", e.target.value)} className="rounded-lg border border-black/10 bg-zinc-50 px-2 py-1.5 font-mono text-sm dark:border-white/10 dark:bg-zinc-800" data-testid={`example-output-${idx}`} />
                 </label>
                 <button type="button" onClick={() => removeExample(idx)} aria-label="Remove example" className="h-9 w-9 rounded-full border border-black/10 hover:bg-red-50 dark:border-white/15 dark:hover:bg-red-950">×</button>
               </div>
             ))}
           </div>
-          <p className="mt-2 text-xs text-zinc-500">Tests visibles issus des exemples · Visible tests from examples</p>
+          <p className="mt-2 text-xs text-zinc-600">Tests visibles issus des exemples · Visible tests from examples</p>
         </div>
 
         {/* Concepts & Difficulty & Locale */}
@@ -185,7 +185,7 @@ export function ExerciseConfirm({ exercise: initial, onConfirm, onCancel, meta }
           <strong>Milestones {ex.milestones.length}</strong> · {ex.milestones.map((m)=>m.title).join(" → ")} <br />
           <strong>Visible tests {ex.visibleTests.length}</strong> · {ex.visibleTests.map((t)=>`${t.id}:${t.expected}`).join(", ") || "—"} <br />
           <strong>Hidden tests {ex.hiddenTests?.length ?? 0}</strong> · {ex.hiddenTests?.map((t)=>`${t.id} (${t.category ?? "hidden"})`).join(", ") || "—"} <br />
-          <span className="text-zinc-500">Les tests cachés ne révèlent jamais l&apos;entrée/sortie au-delà de la catégorie — only category visible.</span>
+          <span className="text-zinc-600">Les tests cachés ne révèlent jamais l&apos;entrée/sortie au-delà de la catégorie — only category visible.</span>
           <br />Source: {ex.source} · id {ex.id}
         </div>
       </div>

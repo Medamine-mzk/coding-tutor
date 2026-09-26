@@ -85,7 +85,7 @@ export function LibraryClient() {
         </select>
       </div>
 
-      <p className="mt-3 text-xs text-zinc-500" data-testid="library-count" aria-live="polite">
+      <p className="mt-3 text-xs text-zinc-600" data-testid="library-count" aria-live="polite">
         {filtered.length} / {LIBRARY_EXERCISES.length} {locale === "ar" ? "تمرين" : locale === "en" ? "exercises" : "exercices"}
       </p>
 
@@ -107,7 +107,7 @@ export function LibraryClient() {
             </div>
             <div className="mt-3 rounded-xl bg-zinc-50 p-2 text-xs dark:bg-zinc-800">
               <p className="font-medium">Ex: {ex.examples[0]?.input ?? "—"} → {ex.examples[0]?.output ?? "—"}</p>
-              <p className="mt-1 text-zinc-500">{ex.milestones.length} étapes · {ex.visibleTests.length} tests visibles + {ex.hiddenTests.length} cachés</p>
+              <p className="mt-1 text-zinc-600">{ex.milestones.length} étapes · {ex.visibleTests.length} tests visibles + {ex.hiddenTests.length} cachés</p>
             </div>
             <button onClick={() => handlePick(ex)} className="mt-3 inline-flex items-center justify-center rounded-full bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700" data-testid={`pick-${ex.id}`}>
               {locale === "ar" ? "ابدأ" : locale === "en" ? "Start" : "Commencer"} →
@@ -117,7 +117,7 @@ export function LibraryClient() {
       </div>
 
       {filtered.length === 0 ? (
-        <p className="mt-6 text-center text-sm text-zinc-500" data-testid="no-results">
+        <p className="mt-6 text-center text-sm text-zinc-600" data-testid="no-results">
           {locale === "ar" ? "لا نتائج" : locale === "en" ? "No results" : "Aucun résultat"}
         </p>
       ) : null}

@@ -39,11 +39,11 @@ export default function TeacherProgressPage() {
       <div className="mt-6">
         <h2 className="font-semibold">Roster</h2>
         {roster.length === 0 ? (
-          <p className="mt-2 text-sm text-zinc-500">Aucun élève n'a encore rejoint avec ce code.</p>
+          <p className="mt-2 text-sm text-zinc-600">Aucun élève n'a encore rejoint avec ce code.</p>
         ) : (
           <div className="mt-2 overflow-auto rounded-xl border border-black/10">
             <table className="w-full text-sm">
-              <thead className="bg-zinc-50 text-left text-xs text-zinc-500">
+              <thead className="bg-zinc-50 text-left text-xs text-zinc-600">
                 <tr>
                   <th className="px-3 py-2">Élève</th>
                   <th className="px-3 py-2">Étape actuelle</th>
@@ -53,10 +53,10 @@ export default function TeacherProgressPage() {
               </thead>
               <tbody>
                 {roster.map((r) => (
-                  <tr key={r.display_name + r.lastActive} className="border-t border-black/5">
+                  <tr key={r.display_name + r.lastActive} className="border-t border-black/5 dark:border-white/10">
                     <td className="px-3 py-2 font-medium">{r.display_name}</td>
                     <td className="px-3 py-2">Étape {r.currentStep}</td>
-                    <td className="px-3 py-2 text-xs text-zinc-500">{new Date(r.lastActive).toLocaleString()}</td>
+                    <td className="px-3 py-2 text-xs text-zinc-600">{new Date(r.lastActive).toLocaleString()}</td>
                     <td className="px-3 py-2">{r.sessionCount}</td>
                   </tr>
                 ))}
@@ -75,7 +75,7 @@ export default function TeacherProgressPage() {
                 <span className="text-sm font-medium">
                   {s.order}. {s.title}
                 </span>
-                <span className="text-xs text-zinc-500">{Math.round(s.completionRate * 100)}% ont dépassé · {s.stalledCount} bloqués</span>
+                <span className="text-xs text-zinc-600">{Math.round(s.completionRate * 100)}% ont dépassé · {s.stalledCount} bloqués</span>
               </div>
               <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-zinc-200">
                 <div className="h-full bg-emerald-500" style={{ width: `${s.completionRate * 100}%` }} />

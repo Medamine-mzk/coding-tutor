@@ -31,8 +31,10 @@ function getNested(obj: unknown, path: string): string | undefined {
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(defaultLocale);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const saved = localStorage.getItem("locale") as Locale | null;
     if (saved && (locales as readonly string[]).includes(saved)) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate from storage once
@@ -46,10 +48,11 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!mounted) return;
     document.documentElement.lang = locale;
     document.documentElement.dir = localeDir[locale];
     localStorage.setItem("locale", locale);
-  }, [locale]);
+  }, [locale, mounted]);
 
   const dir = localeDir[locale];
   const msgs = messages[locale] ?? messages[defaultLocale];

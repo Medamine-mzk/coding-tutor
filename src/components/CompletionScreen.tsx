@@ -30,7 +30,7 @@ export function CompletionScreen({ exercise, onContinue, onRetry }: Props) {
       <div className="mt-4 rounded-xl bg-white p-3 text-sm text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
         <p className="font-medium">Réflexion · Reflection · تأمل</p>
         <p className="mt-1 leading-6">{reflection}</p>
-        <p className="mt-2 text-xs text-zinc-500">Concepts vus : {concepts} · Difficulté {exercise.difficulty}/5 · {exercise.milestones.length} étapes</p>
+        <p className="mt-2 text-xs text-zinc-600">Concepts vus : {concepts} · Difficulté {exercise.difficulty}/5 · {exercise.milestones.length} étapes</p>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         <button onClick={onContinue} className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700" data-testid="btn-continue">

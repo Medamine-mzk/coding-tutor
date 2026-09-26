@@ -39,7 +39,7 @@ export function Console({ stdout, stderr, awaitingInput, inputPrompt, onSubmitIn
           <pre className="whitespace-pre-wrap break-words text-red-400" data-testid="console-stderr">{stderr}</pre>
         ) : null}
         {!stdout && !stderr && !awaitingInput ? (
-          <span className="text-zinc-500">No output yet. Press Run.</span>
+          <span className="text-zinc-600">No output yet. Press Run.</span>
         ) : null}
         {awaitingInput ? (
           <form onSubmit={handleSubmit} className="mt-3 flex items-center gap-2">
@@ -49,7 +49,7 @@ export function Console({ stdout, stderr, awaitingInput, inputPrompt, onSubmitIn
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Type input and press Enter"
-              className="flex-1 rounded border border-white/20 bg-zinc-900 px-2 py-1 text-sm text-white placeholder:text-zinc-500 focus:border-white/40 focus:outline-none"
+              className="flex-1 rounded border border-white/20 bg-zinc-900 px-2 py-1 text-sm text-white placeholder:text-zinc-400 focus:border-white/40 focus:outline-none"
               data-testid="console-input"
             />
             <button type="submit" className="rounded bg-white px-3 py-1 text-xs font-medium text-zinc-900 hover:bg-zinc-100">

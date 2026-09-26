@@ -63,8 +63,8 @@ export default function NewExercisePage() {
   const [referenceFile, setReferenceFile] = useState<File | null>(null);
   const [uploadLoading, setUploadLoading] = useState(false);
 
-  const inputCls = "rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-300 focus:outline-none dark:border-white/10 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500";
-  const textareaCls = "rounded-xl border border-black/10 bg-white p-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-300 focus:outline-none dark:border-white/10 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500";
+  const inputCls = "rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-300 focus:outline-none dark:border-white/10 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-400";
+  const textareaCls = "rounded-xl border border-black/10 bg-white p-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-300 focus:outline-none dark:border-white/10 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-400";
   const smallInputCls = "rounded-lg border border-black/10 bg-white px-2 py-1 text-sm text-zinc-900 placeholder:text-zinc-400 dark:border-white/10 dark:bg-zinc-800 dark:text-zinc-100";
   const selectCls = "rounded-lg border border-black/10 bg-white px-2 py-1 text-xs text-zinc-900 dark:border-white/10 dark:bg-zinc-800 dark:text-zinc-100";
 
@@ -343,7 +343,7 @@ export default function NewExercisePage() {
 
           <div className="rounded-xl border border-black/10 bg-zinc-50 p-4 dark:border-white/10 dark:bg-zinc-800">
             <h3 className="font-medium text-zinc-900 dark:text-zinc-100">Étapes ({steps.length}) — Step schema vérifié</h3>
-            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Chaque étape déclare check_type: ast_check (début), function_test, ou io_test (final).</p>
+            <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">Chaque étape déclare check_type: ast_check (début), function_test, ou io_test (final).</p>
             <div className="mt-3 space-y-2">
               {steps.map((s, idx) => (
                 <div key={idx} className="grid gap-2 rounded-lg border border-black/5 bg-white p-3 dark:border-white/10 dark:bg-zinc-900">
@@ -390,12 +390,12 @@ export default function NewExercisePage() {
             <div className="space-y-1.5" aria-live="polite" data-testid="llm-progress">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-medium text-zinc-700 dark:text-zinc-300">{llmStage || "Analyse…"}</span>
-                <span className="tabular-nums text-zinc-500">{Math.round(llmProgress)}%</span>
+                <span className="tabular-nums text-zinc-600">{Math.round(llmProgress)}%</span>
               </div>
               <div role="progressbar" aria-valuenow={Math.round(llmProgress)} aria-valuemin={0} aria-valuemax={100} className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
-                <div className={`h-full rounded-full transition-all duration-300 ${llmMode === "cache" ? "bg-sky-500" : llmMode === "llm" ? "bg-emerald-500" : llmMode === "heuristic" ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${Math.min(100, Math.max(0, llmProgress))}%` }} />
+                <div className={`h-full rounded-full transition-all duration-300 ${llmMode === "cache" ? "bg-sky-500" : llmMode === "llm" ? "bg-emerald-500" : llmMode === "heuristic" ? "bg-amber-600" : "bg-emerald-500"}`} style={{ width: `${Math.min(100, Math.max(0, llmProgress))}%` }} />
               </div>
-              {llmMode && <p className="text-xs"><span className={`rounded-full px-2 py-0.5 font-medium ${llmMode === "llm" ? "bg-emerald-50 text-emerald-700" : llmMode === "cache" ? "bg-sky-50 text-sky-700" : "bg-amber-50 text-amber-700"}`}>{llmMode === "llm" ? "LLM" : llmMode === "cache" ? "Cache" : "Local"}</span></p>}
+              {llmMode && <p className="text-xs"><span className={`rounded-full px-2 py-0.5 font-medium ${llmMode === "llm" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : llmMode === "cache" ? "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300" : "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"}`}>{llmMode === "llm" ? "LLM" : llmMode === "cache" ? "Cache" : "Local"}</span></p>}
             </div>
           )}
           {suggestions.length > 0 && (

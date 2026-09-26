@@ -111,7 +111,7 @@ export function FileUpload({ onSingle, onMultiple, onError }: Props) {
         <p className="text-sm font-medium">
           {loading ? (locale === "ar" ? "جاري الرفع..." : locale === "en" ? "Uploading..." : "Import en cours…") : locale === "ar" ? "اسحب الملف أو انقر للاختيار" : locale === "en" ? "Drag file or click to choose" : "Glissez un fichier ou cliquez"}
         </p>
-        <p className="mt-1 text-xs text-zinc-500">.txt, .md, .pdf, .docx, .png, .jpg — 5 Mo max</p>
+        <p className="mt-1 text-xs text-zinc-600">.txt, .md, .pdf, .docx, .png, .jpg — 5 Mo max</p>
         {fileName ? <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400" data-testid="file-name">{fileName}</p> : null}
         {loading ? <p className="mt-1 text-xs text-emerald-600">Analyse…</p> : null}
       </div>
@@ -140,7 +140,7 @@ export function FileUpload({ onSingle, onMultiple, onError }: Props) {
                     data-testid={`multi-radio-${idx}`}
                   />
                   <span className="flex-1 truncate">{ex.title}</span>
-                  <span className="text-xs text-zinc-500">{ex.examples[0]?.input ?? ""} → {ex.examples[0]?.output ?? ""}</span>
+                  <span className="text-xs text-zinc-600">{ex.examples[0]?.input ?? ""} → {ex.examples[0]?.output ?? ""}</span>
                 </label>
               </li>
             ))}

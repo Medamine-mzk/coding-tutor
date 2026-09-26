@@ -191,7 +191,7 @@ export function TutorChat({ exercise, code, lastRunResult, testReport, currentMi
     <div className="flex flex-1 flex-col rounded-2xl border border-black/10 bg-white dark:border-white/10 dark:bg-zinc-900" data-testid="tutor-chat">
       <div className="border-b border-black/10 p-3 dark:border-white/10">
         <h2 className="font-semibold">{t("workspace.tutor")}</h2>
-        <p className="text-xs text-zinc-500">Socratique d&apos;abord — jamais la solution · Niveau {hintLevel} / 5</p>
+        <p className="text-xs text-zinc-600">Socratique d&apos;abord — jamais la solution · Niveau {hintLevel} / 5</p>
         {offline ? <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">Hors ligne — tutor offline</p> : null}
       </div>
 
@@ -199,10 +199,10 @@ export function TutorChat({ exercise, code, lastRunResult, testReport, currentMi
         {messages.map((m) => (
           <div key={m.id} className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-6 ${m.role === "student" ? "self-end bg-zinc-900 text-white dark:bg-white dark:text-zinc-900" : "self-start bg-zinc-50 dark:bg-zinc-800"}`} data-testid={`msg-${m.role}`}>
             <p className="whitespace-pre-wrap break-words">{m.content || (streaming && m.role === "tutor" && m.content === "" ? "…" : m.content)}</p>
-            {m.hintLevel !== undefined ? <span className="mt-1 block text-xs text-zinc-500">Hint level {m.hintLevel}</span> : null}
+            {m.hintLevel !== undefined ? <span className="mt-1 block text-xs text-zinc-600">Hint level {m.hintLevel}</span> : null}
           </div>
         ))}
-        {streaming ? <span className="self-start text-xs text-zinc-500" aria-live="polite">streaming…</span> : null}
+        {streaming ? <span className="self-start text-xs text-zinc-600" aria-live="polite">streaming…</span> : null}
       </div>
 
       <div className="grid grid-cols-2 gap-2 border-t border-black/10 p-3 dark:border-white/10" role="group" aria-label={locale === "ar" ? "إجراءات سريعة" : locale === "en" ? "Quick actions" : "Actions rapides"}>
@@ -248,7 +248,7 @@ export function TutorChat({ exercise, code, lastRunResult, testReport, currentMi
           ➤
         </button>
       </form>
-      <p className="px-3 pb-2 text-xs text-zinc-500">Max ~120 mots · Une idée par message · Jamais la solution complète</p>
+      <p className="px-3 pb-2 text-xs text-zinc-600">Max ~120 mots · Une idée par message · Jamais la solution complète</p>
     </div>
   );
 }

@@ -32,7 +32,7 @@ export function OfflineBanner() {
         : "Tu es hors ligne — l'éditeur et l'exécution Python restent disponibles hors ligne une fois mis en cache, le tuteur nécessite le réseau.";
 
   return (
-    <div className="bg-amber-500 px-4 py-2 text-center text-sm font-medium text-white" role="status" data-testid="offline-banner">
+    <div className="bg-amber-600 px-4 py-2 text-center text-sm font-medium text-white" role="status" data-testid="offline-banner">
       {text}
     </div>
   );

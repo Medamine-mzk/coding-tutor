@@ -43,7 +43,7 @@ export default function TeacherLoginPage() {
   return (
     <div className="mx-auto max-w-md px-4 py-12 sm:px-6">
       <div className="rounded-2xl border border-zinc-200 bg-gradient-to-br from-zinc-50 to-white p-6 text-center dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-950">
-        <p className="text-xs font-medium uppercase tracking-widest text-zinc-500">Espace enseignant</p>
+        <p className="text-xs font-medium uppercase tracking-widest text-zinc-600">Espace enseignant</p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">Connexion sans mot de passe</h1>
         <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-zinc-600 dark:text-zinc-400">Entrez votre email, nous vous envoyons un lien magique valable 15 minutes. Idéal pour le contexte lycée — pas de SSO institutionnel requis.</p>
       </div>
@@ -64,7 +64,7 @@ export default function TeacherLoginPage() {
       </div>
       {sent ? <p className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">Lien envoyé. Vérifiez vos logs serveur en dev, ou votre email en prod.</p> : null}
       {tokenForDev ? (
-        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs">
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950 p-3 text-xs">
           <p className="font-medium">Dev — token:</p>
           <p className="mt-1 break-all font-mono">{tokenForDev}</p>
           <a href={`/api/teacher/auth/verify?token=${encodeURIComponent(tokenForDev)}`} className="mt-2 inline-block rounded-full bg-amber-600 px-3 py-1 text-xs text-white">Vérifier et aller au dashboard →</a>

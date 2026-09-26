@@ -239,7 +239,7 @@ export function WorkspaceClient() {
           ["editor", t("workspace.editor") + " / " + t("workspace.console")],
           ["tutor", t("workspace.tutor")],
         ] as const).map(([key, label]) => (
-          <button key={key} onClick={() => setActiveTab(key)} className={`flex-1 px-3 py-3 text-sm font-medium ${activeTab === key ? "border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white" : "text-zinc-500"}`}>
+          <button key={key} onClick={() => setActiveTab(key)} className={`flex-1 px-3 py-3 text-sm font-medium ${activeTab === key ? "border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white" : "text-zinc-600"}`}>
             {label}
           </button>
         ))}
@@ -262,9 +262,9 @@ export function WorkspaceClient() {
               <pre className="mt-1 rounded bg-white p-2 font-mono text-xs dark:bg-zinc-900">
                 {loadedExercise?.examples[0] ? `Entree: ${loadedExercise.examples[0].input} -> Sortie: ${loadedExercise.examples[0].output}` : "Entree: 2 3 -> Sortie: 5"}
               </pre>
-              <p className="mt-2 text-xs text-zinc-500">Contraintes : {loadedExercise?.constraints[0] ?? "-1000 ≤ a,b ≤ 1000"}</p>
-              {loadedExercise?.concepts?.length ? <p className="mt-1 text-xs text-zinc-500">Concepts: {loadedExercise.concepts.join(", ")}</p> : null}
-              <p className="mt-1 text-xs text-zinc-500">{loadedExercise?.ioSpec ?? ""}</p>
+              <p className="mt-2 text-xs text-zinc-600">Contraintes : {loadedExercise?.constraints[0] ?? "-1000 ≤ a,b ≤ 1000"}</p>
+              {loadedExercise?.concepts?.length ? <p className="mt-1 text-xs text-zinc-600">Concepts: {loadedExercise.concepts.join(", ")}</p> : null}
+              <p className="mt-1 text-xs text-zinc-600">{loadedExercise?.ioSpec ?? ""}</p>
             </div>
           </div>
           <div className="rounded-2xl border border-black/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
@@ -289,11 +289,11 @@ export function WorkspaceClient() {
               </ul>
             )}
             {milestoneStatuses ? (
-              <p className="mt-2 text-xs text-zinc-500">
+              <p className="mt-2 text-xs text-zinc-600">
                 {milestoneStatuses.filter((s) => s.completed).length}/{milestoneStatuses.length} étapes validées · Suivant : {milestoneStatuses.find((s) => !s.completed)?.milestone.title ?? "toutes validées !"}
               </p>
             ) : loadedExercise?.milestones?.length ? (
-              <p className="mt-2 text-xs text-zinc-500">{loadedExercise.milestones.length} étapes générées (3-7) — titres seulement, critères internes</p>
+              <p className="mt-2 text-xs text-zinc-600">{loadedExercise.milestones.length} étapes générées (3-7) — titres seulement, critères internes</p>
             ) : null}
           </div>
         </div>
@@ -301,7 +301,7 @@ export function WorkspaceClient() {
         <div role="region" aria-label={`${t("workspace.editor")} & ${t("workspace.console")}`} className={`${activeTab !== "editor" ? "hidden lg:flex" : "flex"} flex flex-col gap-3`}>
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-black/10 bg-white p-3 dark:border-white/10 dark:bg-zinc-900">
             <div className="flex items-center gap-2">
-              <button onClick={handleRun} disabled={running} data-testid="run-btn" className="inline-flex h-9 items-center gap-2 rounded-full bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:disabled:bg-zinc-700">
+              <button onClick={handleRun} disabled={running} data-testid="run-btn" className="inline-flex h-9 items-center gap-2 rounded-full bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400 dark:disabled:bg-zinc-700">
                 <span aria-hidden>▶</span> {t("workspace.run")}
               </button>
               <button onClick={handleStop} disabled={!running} data-testid="stop-btn" className="inline-flex h-9 items-center gap-2 rounded-full border border-black/10 bg-white px-4 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50 dark:border-white/15 dark:bg-zinc-800 dark:hover:bg-zinc-700">
@@ -341,7 +341,7 @@ export function WorkspaceClient() {
                 className="mt-2 w-full rounded-lg border border-black/10 bg-zinc-50 p-2 font-mono text-sm dark:border-white/10 dark:bg-zinc-800"
                 data-testid="stdin-input"
               />
-              <p className="mt-1 text-xs text-zinc-500">Exemple : 2 lignes pour deux appels a input()</p>
+              <p className="mt-1 text-xs text-zinc-600">Exemple : 2 lignes pour deux appels a input()</p>
             </div>
             <Console
               stdout={status?.stdout ?? ""}
