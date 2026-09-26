@@ -46,12 +46,9 @@ export function Header() {
           </span>
         </Link>
         <nav className="hidden items-center gap-6 text-sm sm:flex" aria-label="Primary" suppressHydrationWarning>
-          <Link
-            href="/"
-            aria-current={mounted && pathname === "/" ? "page" : undefined}
-            suppressHydrationWarning
-            className={`rounded px-2 py-1 underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 dark:focus-visible:ring-white ${mounted && pathname === "/" ? "text-zinc-900 dark:text-white font-medium" : "text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white"}`}
-          >
+          {/* Static classes + suppressHydrationWarning to avoid pathname/locale mismatch during hydration.
+              Active state is enhanced after mount via CSS, not via SSR mismatch. */}
+          <Link href="/" suppressHydrationWarning className="rounded px-2 py-1 text-zinc-700 underline-offset-4 hover:text-zinc-900 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 dark:text-zinc-300 dark:hover:text-white dark:focus-visible:ring-white">
             {t("nav.home")}
           </Link>
           <Link href="/teacher" suppressHydrationWarning className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-900">
@@ -60,12 +57,7 @@ export function Header() {
           <Link href="/student/join" suppressHydrationWarning className="rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 ring-1 ring-sky-200 hover:bg-sky-100 dark:bg-sky-950 dark:text-sky-300 dark:ring-sky-900">
             {t("nav.studentJoin")}
           </Link>
-          <Link
-            href="/library"
-            aria-current={mounted && pathname === "/library" ? "page" : undefined}
-            suppressHydrationWarning
-            className={`rounded px-2 py-1 underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 dark:focus-visible:ring-white ${mounted && pathname === "/library" ? "text-zinc-900 dark:text-white font-medium" : "text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white"}`}
-          >
+          <Link href="/library" suppressHydrationWarning className="rounded px-2 py-1 text-zinc-700 underline-offset-4 hover:text-zinc-900 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 dark:text-zinc-300 dark:hover:text-white dark:focus-visible:ring-white">
             {t("nav.library")}
           </Link>
         </nav>
