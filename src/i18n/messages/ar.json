@@ -35,12 +35,24 @@
     "modeCache": "Cache",
     "modeRemoteAI": "ذكاء عن بعد",
     "modeOfflineHeuristic": "استدلال دون اتصال",
-    "modeReused": "معاد استخدامه"
+    "modeReused": "معاد استخدامه",
+    "pivotTitle": "اختر دورك",
+    "pivotSubtitle": "النموذج الجديد: المعلّم ينشئ مرة واحدة، الطالب ينضم برمز. وضع الممارسة يبقى متاحا.",
+    "teacherCta": "أنا معلّم",
+    "teacherCtaDesc": "أنشئ تمرينا (يدوي، ذكاء اصطناعي أو رفع)، احصل على رمز PY-XXXX وتابِع تقدّم فصلك.",
+    "teacherAction": "إلى فضاء المعلّم ←",
+    "studentCta": "أنا طالب",
+    "studentCtaDesc": "أدخل الرمز من السبورة + اسمك الأول. لا حساب، فقط الرمز.",
+    "studentAction": "الانضمام برمز ←",
+    "practiceToggle": "وضع الممارسة — الصق تمريني الخاص (بدون رمز، غير متتبع)",
+    "practiceHint": "التدفق القديم paste → generate يبقى هنا للتدريب الفردي."
   },
   "nav": {
     "home": "الرئيسية",
     "workspace": "الورشة",
-    "library": "المكتبة"
+    "library": "المكتبة",
+    "teacher": "المعلّم",
+    "studentJoin": "انضمام"
   },
   "footer": {
     "offline": "يعمل دون اتصال بعد التخزين",

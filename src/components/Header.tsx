@@ -38,8 +38,14 @@ export function Header() {
           </span>
         </Link>
         <nav className="hidden items-center gap-6 text-sm sm:flex" aria-label="Primary">
-          <Link href="/" aria-current="page" className="rounded px-2 py-1 text-zinc-700 underline-offset-4 hover:text-zinc-900 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 dark:text-zinc-300 dark:hover:text-white dark:focus-visible:ring-white">
+          <Link href="/" className="rounded px-2 py-1 text-zinc-700 underline-offset-4 hover:text-zinc-900 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 dark:text-zinc-300 dark:hover:text-white dark:focus-visible:ring-white">
             {t("nav.home")}
+          </Link>
+          <Link href="/teacher" className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-900">
+            {t("nav.teacher")}
+          </Link>
+          <Link href="/student/join" className="rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 ring-1 ring-sky-200 hover:bg-sky-100 dark:bg-sky-950 dark:text-sky-300 dark:ring-sky-900">
+            {t("nav.studentJoin")}
           </Link>
           <Link href="/library" className="rounded px-2 py-1 text-zinc-700 underline-offset-4 hover:text-zinc-900 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 dark:text-zinc-300 dark:hover:text-white dark:focus-visible:ring-white">
             {t("nav.library")}

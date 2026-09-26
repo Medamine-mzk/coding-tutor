@@ -219,7 +219,7 @@ export function LandingClient() {
   return (
     <div className="flex flex-1 flex-col">
       <section className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
-        <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
+        <div className="grid gap-10 lg:grid-cols-2 lg:items-start">
           <div className={`flex flex-col gap-6 ${dir === "rtl" ? "text-right" : "text-left"}`}>
             <p className="inline-flex w-fit rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
               {t("landing.pythonOnly")}
@@ -231,17 +231,42 @@ export function LandingClient() {
               {t("landing.heroSubtitle")}
             </p>
             <div className="flex flex-wrap gap-3">
-              <a href="#start" className="inline-flex h-11 items-center justify-center rounded-full bg-zinc-900 px-6 font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100">
-                {t("landing.cta")} →
+              <a href="#pivot" className="inline-flex h-11 items-center justify-center rounded-full bg-zinc-900 px-6 font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100">
+                {t("landing.pivotTitle")} →
               </a>
               <Link href="/library" className="inline-flex h-11 items-center justify-center rounded-full border border-black/10 px-6 font-medium hover:bg-zinc-50 dark:border-white/15 dark:hover:bg-zinc-900">
                 {t("landing.library")}
               </Link>
             </div>
             <p className="text-xs text-zinc-500 dark:text-zinc-500">{t("landing.principles")}</p>
+            <p className="text-xs text-zinc-500">{t("landing.pivotSubtitle")}</p>
           </div>
 
-          <div id="start" className="rounded-2xl border border-black/10 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-zinc-900">
+          <div id="pivot" className="flex flex-col gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Link href="/teacher" className="group rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-5 shadow-sm transition hover:shadow-md dark:border-emerald-900 dark:from-emerald-950 dark:to-teal-950">
+                <p className="text-xs font-medium uppercase tracking-widest text-emerald-700 dark:text-emerald-300">Enseignant</p>
+                <h3 className="mt-1 font-semibold">{t("landing.teacherCta")}</h3>
+                <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-400">{t("landing.teacherCtaDesc")}</p>
+                <span className="mt-3 inline-flex text-sm font-medium text-emerald-700 group-hover:underline dark:text-emerald-300">{t("landing.teacherAction")}</span>
+              </Link>
+              <Link href="/student/join" className="group rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-indigo-50 p-5 shadow-sm transition hover:shadow-md dark:border-sky-900 dark:from-sky-950 dark:to-indigo-950">
+                <p className="text-xs font-medium uppercase tracking-widest text-sky-700 dark:text-sky-300">Élève</p>
+                <h3 className="mt-1 font-semibold">{t("landing.studentCta")}</h3>
+                <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-400">{t("landing.studentCtaDesc")}</p>
+                <span className="mt-3 inline-flex text-sm font-medium text-sky-700 group-hover:underline dark:text-sky-300">{t("landing.studentAction")}</span>
+              </Link>
+            </div>
+            <details id="start" className="group rounded-2xl border border-black/10 bg-white p-6 shadow-sm open:shadow-md dark:border-white/10 dark:bg-zinc-900">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
+                <span>
+                  <h2 className="font-semibold">{t("landing.practiceToggle")}</h2>
+                  <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{t("landing.practiceHint")}</p>
+                </span>
+                <span className="shrink-0 rounded-full border border-black/10 px-3 py-1 text-xs group-open:rotate-180 transition-transform">⌃</span>
+              </summary>
+              <div className="mt-4 border-t border-black/5 pt-4 dark:border-white/10">
+                <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <h2 className="font-semibold">{t("landing.cta")}</h2>
               <span className="rounded-full bg-zinc-900 px-3 py-1 text-xs font-medium text-white dark:bg-white dark:text-zinc-900">Python</span>
@@ -338,7 +363,10 @@ export function LandingClient() {
                 {clarification}
               </div>
             ) : null}
-          </div>
+              </div>
+            </div>
+          </details>
+        </div>
         </div>
       </section>
 

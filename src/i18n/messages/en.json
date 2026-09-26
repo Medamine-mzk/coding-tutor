@@ -35,12 +35,24 @@
     "modeCache": "Cache",
     "modeRemoteAI": "remote AI",
     "modeOfflineHeuristic": "offline heuristic",
-    "modeReused": "reused"
+    "modeReused": "reused",
+    "pivotTitle": "Choose your role",
+    "pivotSubtitle": "New model: teacher creates once, student joins with a code. Practice mode stays available.",
+    "teacherCta": "I'm a teacher",
+    "teacherCtaDesc": "Create an exercise (manual, AI or upload), get a PY-XXXX code and track your class.",
+    "teacherAction": "Go to teacher space →",
+    "studentCta": "I'm a student",
+    "studentCtaDesc": "Enter the code from the board + your first name. No account, just your code.",
+    "studentAction": "Join with a code →",
+    "practiceToggle": "Practice mode — paste my own exercise (no code, not tracked)",
+    "practiceHint": "The old paste → generate flow stays here for solo practice."
   },
   "nav": {
     "home": "Home",
     "workspace": "Workspace",
-    "library": "Library"
+    "library": "Library",
+    "teacher": "Teacher",
+    "studentJoin": "Join"
   },
   "footer": {
     "offline": "Works offline once cached",

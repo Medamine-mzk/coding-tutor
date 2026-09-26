@@ -35,12 +35,24 @@
     "modeCache": "Cache",
     "modeRemoteAI": "IA distante",
     "modeOfflineHeuristic": "heuristique hors ligne",
-    "modeReused": "réutilisé"
+    "modeReused": "réutilisé",
+    "pivotTitle": "Choisis ton rôle",
+    "pivotSubtitle": "Le nouveau modèle : l'enseignant crée une fois, l'élève rejoint avec un code. Le mode pratique reste disponible.",
+    "teacherCta": "Je suis enseignant",
+    "teacherCtaDesc": "Crée un exercice (manuel, IA ou upload), obtiens un code PY-XXXX et suis la progression de ta classe.",
+    "teacherAction": "Aller à l'espace enseignant →",
+    "studentCta": "Je suis élève",
+    "studentCtaDesc": "Entre le code donné au tableau + ton prénom. Pas de compte, juste ton code.",
+    "studentAction": "Rejoindre avec un code →",
+    "practiceToggle": "Mode pratique — coller mon propre exercice (sans code, non suivi)",
+    "practiceHint": "L'ancien flux paste → generate reste disponible ici pour t'entraîner seul."
   },
   "nav": {
     "home": "Accueil",
     "workspace": "Atelier",
-    "library": "Bibliothèque"
+    "library": "Bibliothèque",
+    "teacher": "Enseignant",
+    "studentJoin": "Rejoindre"
   },
   "footer": {
     "offline": "Fonctionne hors ligne une fois mis en cache",
