@@ -9,7 +9,13 @@ import { useEffect, useState } from "react";
 export function Header() {
   const { t } = useI18n();
   const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time mount flag to avoid pathname hydration mismatch
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem("theme") as "light" | "dark" | null;
@@ -42,21 +48,23 @@ export function Header() {
         <nav className="hidden items-center gap-6 text-sm sm:flex" aria-label="Primary" suppressHydrationWarning>
           <Link
             href="/"
-            aria-current={pathname === "/" ? "page" : undefined}
-            className={`rounded px-2 py-1 underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 dark:focus-visible:ring-white ${pathname === "/" ? "text-zinc-900 dark:text-white font-medium" : "text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white"}`}
+            aria-current={mounted && pathname === "/" ? "page" : undefined}
+            suppressHydrationWarning
+            className={`rounded px-2 py-1 underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 dark:focus-visible:ring-white ${mounted && pathname === "/" ? "text-zinc-900 dark:text-white font-medium" : "text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white"}`}
           >
             {t("nav.home")}
           </Link>
-          <Link href="/teacher" className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-900">
+          <Link href="/teacher" suppressHydrationWarning className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-900">
             {t("nav.teacher")}
           </Link>
-          <Link href="/student/join" className="rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 ring-1 ring-sky-200 hover:bg-sky-100 dark:bg-sky-950 dark:text-sky-300 dark:ring-sky-900">
+          <Link href="/student/join" suppressHydrationWarning className="rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 ring-1 ring-sky-200 hover:bg-sky-100 dark:bg-sky-950 dark:text-sky-300 dark:ring-sky-900">
             {t("nav.studentJoin")}
           </Link>
           <Link
             href="/library"
-            aria-current={pathname === "/library" ? "page" : undefined}
-            className={`rounded px-2 py-1 underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 dark:focus-visible:ring-white ${pathname === "/library" ? "text-zinc-900 dark:text-white font-medium" : "text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white"}`}
+            aria-current={mounted && pathname === "/library" ? "page" : undefined}
+            suppressHydrationWarning
+            className={`rounded px-2 py-1 underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 dark:focus-visible:ring-white ${mounted && pathname === "/library" ? "text-zinc-900 dark:text-white font-medium" : "text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white"}`}
           >
             {t("nav.library")}
           </Link>

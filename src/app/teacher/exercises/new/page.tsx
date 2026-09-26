@@ -241,9 +241,16 @@ export default function NewExercisePage() {
         body: JSON.stringify({ text: llmText }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Erreur génération");
+      if (!res.ok) {
+        if (res.status === 401) {
+          setError("Session expirée — reconnecte-toi");
+          setTimeout(() => (window.location.href = "/teacher/login?next=/teacher/exercises/new&reason=session_expired"), 1200);
+          throw new Error("Session expirée — redirige vers /teacher/login");
+        }
+        throw new Error(data.error ?? "Erreur génération");
+      }
       if (data.isExercise === false) throw new Error(data.clarification ?? "Non exercice");
-      setDraft({ ...data.draft, _meta: data.meta } as Record<string, unknown>);
+      setDraft({ ...data.draft, _meta: data.meta, _warnings: data.warnings, _isGeneric: data.isGeneric, _genericWarning: data.genericWarning } as Record<string, unknown>);
       setSuggestions(data.suggestions ?? []);
       setDraftWarnings(data.warnings ?? []);
       setDraftIsGeneric(!!data.isGeneric);
