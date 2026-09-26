@@ -194,22 +194,28 @@ export default function NewExercisePage() {
                 doneDraft = (data as { draft: Record<string, unknown> }).draft;
                 doneSuggestions = (data as { suggestions?: Array<{ code: string; title: string }> }).suggestions ?? [];
                 doneMeta = (data as { meta?: Record<string, unknown> }).meta ?? null;
+                // Capture top-level warnings/isGeneric/genericWarning for SSE
+                const maybeWarnings = (data as { warnings?: string[] }).warnings;
+                const maybeIsGeneric = (data as { isGeneric?: boolean }).isGeneric;
+                const maybeGw = (data as { genericWarning?: { title: string; body: string; suggestion: { input: string; output: string } | null } }).genericWarning;
+                if (maybeWarnings) setDraftWarnings(maybeWarnings as string[]);
+                if (typeof maybeIsGeneric === "boolean") setDraftIsGeneric(maybeIsGeneric as boolean);
+                if (maybeGw) setDraftGenericWarning(maybeGw as { title: string; body: string; suggestion: { input: string; output: string } | null });
               }
             }
           }
           if (doneDraft) {
-            const doneData = doneDraft as unknown as { _genericWarning?: unknown; genericWarning?: unknown; warnings?: string[]; isGeneric?: boolean };
-            // SSE done event may contain genericWarning at top level, need to capture from the last SSE data
-            // For now, also check doneMeta for isGeneric
-            setDraft({ ...doneDraft, _meta: doneMeta } as Record<string, unknown>);
-            setSuggestions(doneSuggestions);
-            // Also handle warnings from SSE done (if any) — they are in the done event's data, not just draft
-            // The SSE done data includes warnings/isGeneric/genericWarning at top level, but we didn't capture them above
-            // For simplicity, rely on the JSON fallback below for warnings, or capture from the last SSE done
-            const lastData = doneDraft as unknown as { warnings?: string[]; isGeneric?: boolean; genericWarning?: unknown };
+            // SSE done event may contain warnings/isGeneric/genericWarning at top level — they were in the done event's data, not just draft
+            // We need to capture them from the last SSE data's top level, but our doneDraft is just the draft, not the full done event
+            // For now, the JSON fallback below will handle the full warnings, but for SSE we can also check if doneDraft has them
+            // The actual done event's data includes them at top level, but we lost them when we only stored draft
+            // To fix, we should have stored them when we parsed the done event — do it there
+            const lastData = doneDraft as unknown as { warnings?: string[]; isGeneric?: boolean; genericWarning?: { title: string; body: string; suggestion: { input: string; output: string } | null } };
             if (lastData.warnings) setDraftWarnings(lastData.warnings as string[]);
             if (typeof lastData.isGeneric === "boolean") setDraftIsGeneric(lastData.isGeneric as boolean);
             if ((lastData as { genericWarning?: unknown }).genericWarning) setDraftGenericWarning((lastData as { genericWarning: { title: string; body: string; suggestion: { input: string; output: string } | null } }).genericWarning);
+            setDraft({ ...doneDraft, _meta: doneMeta } as Record<string, unknown>);
+            setSuggestions(doneSuggestions);
             if (doneMeta && (doneMeta as { parseMode?: string }).parseMode) {
               setLlmMode((doneMeta as { parseMode: string }).parseMode as "llm" | "heuristic" | "cache");
             }
@@ -237,7 +243,7 @@ export default function NewExercisePage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Erreur génération");
       if (data.isExercise === false) throw new Error(data.clarification ?? "Non exercice");
-      setDraft({ ...data.draft, _meta: data.meta, _warnings: data.warnings, _isGeneric: data.isGeneric, _genericWarning: data.genericWarning } as Record<string, unknown>);
+      setDraft({ ...data.draft, _meta: data.meta } as Record<string, unknown>);
       setSuggestions(data.suggestions ?? []);
       setDraftWarnings(data.warnings ?? []);
       setDraftIsGeneric(!!data.isGeneric);
