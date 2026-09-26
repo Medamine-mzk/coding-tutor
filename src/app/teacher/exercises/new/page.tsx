@@ -37,6 +37,25 @@ export default function NewExercisePage() {
   const [llmMode, setLlmMode] = useState<"llm" | "heuristic" | "cache" | null>(null);
   const [suggestions, setSuggestions] = useState<Array<{ code: string; title: string }>>([]);
   const [draft, setDraft] = useState<Record<string, unknown> | null>(null);
+  const [draftWarnings, setDraftWarnings] = useState<string[]>([]);
+  const [draftIsGeneric, setDraftIsGeneric] = useState(false);
+  const [draftGenericWarning, setDraftGenericWarning] = useState<{ title: string; body: string; suggestion: { input: string; output: string } | null } | null>(null);
+  // Derived from draft or API genericWarning — for display
+  const getDraftWarningState = () => {
+    const d = draft as Record<string, unknown> & {
+      examples?: Array<{ input: string; output: string }>;
+      genericWarning?: { title: string; body: string; suggestion: { input: string; output: string } | null };
+      _genericWarning?: { title: string; body: string; suggestion: { input: string; output: string } | null };
+      warnings?: string[];
+      isGeneric?: boolean;
+    } | null;
+    const apiGw = draftGenericWarning;
+    const draftGw = d?.genericWarning ?? d?._genericWarning ?? null;
+    const gw = apiGw ?? draftGw ?? null;
+    const isGen = d?.examples?.[0]?.input === "exemple entrée" || d?.isGeneric || draftIsGeneric || !!gw;
+    const warns = d?.warnings ?? draftWarnings;
+    return { isGen, gw, warns };
+  };
 
   // Upload
   const [exerciseMdFile, setExerciseMdFile] = useState<File | null>(null);
@@ -120,6 +139,9 @@ export default function NewExercisePage() {
     setError(null);
     setDraft(null);
     setSuggestions([]);
+    setDraftWarnings([]);
+    setDraftIsGeneric(false);
+    setDraftGenericWarning(null);
     setLlmProgress(5);
     setLlmStage("Analyse de l'énoncé…");
     setLlmMode(null);
@@ -176,8 +198,18 @@ export default function NewExercisePage() {
             }
           }
           if (doneDraft) {
+            const doneData = doneDraft as unknown as { _genericWarning?: unknown; genericWarning?: unknown; warnings?: string[]; isGeneric?: boolean };
+            // SSE done event may contain genericWarning at top level, need to capture from the last SSE data
+            // For now, also check doneMeta for isGeneric
             setDraft({ ...doneDraft, _meta: doneMeta } as Record<string, unknown>);
             setSuggestions(doneSuggestions);
+            // Also handle warnings from SSE done (if any) — they are in the done event's data, not just draft
+            // The SSE done data includes warnings/isGeneric/genericWarning at top level, but we didn't capture them above
+            // For simplicity, rely on the JSON fallback below for warnings, or capture from the last SSE done
+            const lastData = doneDraft as unknown as { warnings?: string[]; isGeneric?: boolean; genericWarning?: unknown };
+            if (lastData.warnings) setDraftWarnings(lastData.warnings as string[]);
+            if (typeof lastData.isGeneric === "boolean") setDraftIsGeneric(lastData.isGeneric as boolean);
+            if ((lastData as { genericWarning?: unknown }).genericWarning) setDraftGenericWarning((lastData as { genericWarning: { title: string; body: string; suggestion: { input: string; output: string } | null } }).genericWarning);
             if (doneMeta && (doneMeta as { parseMode?: string }).parseMode) {
               setLlmMode((doneMeta as { parseMode: string }).parseMode as "llm" | "heuristic" | "cache");
             }
@@ -205,8 +237,11 @@ export default function NewExercisePage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Erreur génération");
       if (data.isExercise === false) throw new Error(data.clarification ?? "Non exercice");
-      setDraft({ ...data.draft, _meta: data.meta } as Record<string, unknown>);
+      setDraft({ ...data.draft, _meta: data.meta, _warnings: data.warnings, _isGeneric: data.isGeneric, _genericWarning: data.genericWarning } as Record<string, unknown>);
       setSuggestions(data.suggestions ?? []);
+      setDraftWarnings(data.warnings ?? []);
+      setDraftIsGeneric(!!data.isGeneric);
+      setDraftGenericWarning(data.genericWarning ?? null);
       if (data.meta?.parseMode) setLlmMode(data.meta.parseMode as "llm" | "heuristic" | "cache");
       setLlmStage(data.meta?.parseMode === "cache" ? "Cache — réutilisé" : data.meta?.parseMode === "llm" ? "Terminé — LLM" : "Terminé — local");
     } catch (err) {
@@ -366,16 +401,71 @@ export default function NewExercisePage() {
           {draft && (
             <div className="rounded-xl border border-black/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
               <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">Brouillon à relire</h3>
-              {(draft as { examples?: Array<{ input: string }> }).examples?.[0]?.input === "exemple entrée" ? (
-                <div className="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                  <p className="font-medium">⚠ Exemples génériques détectés</p>
-                  <p className="mt-1 leading-5">L'IA n'a pas trouvé d'exemple concret dans l'énoncé et a renvoyé `exemple entrée`. Remplace par 1-2 exemples réalistes avant de publier.</p>
-                  <p className="mt-1 font-mono text-xs">Pour une facture 2 articles TVA 20% : input `Stylo\n10\n2\nCahier\n5\n3` → output `Stylo: 24.0\nCahier: 18.0\nTotal: 42.0`</p>
-                  <button onClick={handleUseDraft} className="mt-2 rounded-full bg-amber-600 px-3 py-1 text-xs font-medium text-white hover:bg-amber-700">
-                    Corriger dans l'onglet Manuel →
-                  </button>
-                </div>
-              ) : null}
+              {(() => {
+                const d = draft as {
+                  examples?: Array<{ input: string; output: string }>;
+                  _genericWarning?: { title: string; body: string; suggestion: { input: string; output: string } | null };
+                  genericWarning?: { title: string; body: string; suggestion: { input: string; output: string } | null };
+                  warnings?: string[];
+                  isGeneric?: boolean;
+                  _isGeneric?: boolean;
+                };
+                const gw = draftGenericWarning ?? (d as { genericWarning?: typeof draftGenericWarning }).genericWarning ?? (d as { _genericWarning?: typeof draftGenericWarning })._genericWarning ?? null;
+                const warnList = draftWarnings.length ? draftWarnings : (d as { warnings?: string[] }).warnings ?? [];
+                const isGen = draftIsGeneric || d.examples?.[0]?.input === "exemple entrée" || (d as { isGeneric?: boolean }).isGeneric || !!gw;
+                if (!isGen && !gw && warnList.length === 0) return null;
+                // Clearer, non-technical copy — no `exemple entrée` jargon in the title
+                const title = "Il manque un exemple concret";
+                const body =
+                  gw?.body ??
+                  "Ton énoncé ne donne pas d'exemple chiffré. Sans exemple, les tests ne peuvent rien vérifier. Ajoute au moins un couple Entrée → Sortie réaliste.";
+                const suggestion = gw?.suggestion;
+                return (
+                  <div className="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                    <p className="font-medium">⚠ {title}</p>
+                    <p className="mt-1 leading-5">{body}</p>
+                    {suggestion ? (
+                      <div className="mt-2 rounded-lg bg-white p-2.5 dark:bg-zinc-900">
+                        <p className="text-xs font-medium text-zinc-900 dark:text-zinc-100">Exemple proposé pour cet exercice :</p>
+                        <div className="mt-1.5 grid gap-1 font-mono text-xs">
+                          <div className="rounded bg-amber-100 px-2 py-1 dark:bg-zinc-800">
+                            <span className="font-medium">Entrée :</span> {suggestion.input.replace(/\n/g, " ⏎ ")}
+                          </div>
+                          <div className="rounded bg-white px-2 py-1 ring-1 ring-amber-200 dark:bg-zinc-800 dark:ring-amber-900">
+                            <span className="font-medium">Sortie attendue :</span> {suggestion.output.replace(/\n/g, " ⏎ ")}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const exStr = `${suggestion.input} -> ${suggestion.output}`;
+                            handleUseDraft();
+                            setTimeout(() => setExamples(exStr), 120);
+                          }}
+                          className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700"
+                        >
+                          Utiliser cet exemple →
+                        </button>
+                        <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">Tu pourras le modifier dans l'onglet Manuel avant de créer.</p>
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-xs">Dans l'onglet Manuel, ajoute une ligne `entrée → sortie` (ex: `2 3 → 5`).</p>
+                    )}
+                    {warnList.length > 0 && warnList[0] !== body && (
+                      <ul className="mt-2 list-disc pl-5 text-xs">
+                        {warnList.map((w, i) => (
+                          <li key={i}>{w}</li>
+                        ))}
+                      </ul>
+                    )}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button onClick={handleUseDraft} className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-amber-800 ring-1 ring-amber-300 hover:bg-amber-100 dark:bg-zinc-900 dark:text-amber-200">
+                        Ouvrir dans Manuel →
+                      </button>
+                      <span className="self-center text-xs text-amber-700 dark:text-amber-300">puis `Créer l'exercice`</span>
+                    </div>
+                  </div>
+                );
+              })()}
               {((draft as { steps?: Array<{ title: string }> }).steps?.some((s) => s.title === "Gérer le cas limite") && (draft as { examples?: Array<{ input: string }> }).examples?.[0]?.input?.split("\n").length === 6) ? (
                 <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700 dark:text-amber-200">
                   Astuce : `Gérer le cas limite` est peu pertinent pour `n=2` fixe — envisage `Calcul TVA (20%)` à la place.
