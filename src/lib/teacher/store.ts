@@ -1,15 +1,64 @@
 import { createHash, randomBytes } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { Teacher, TeacherExercise, StudentIdentity } from "./types";
 import type { Step } from "../exercise/stepPlan";
 import type { TestCase } from "../exercise/types";
 
 // In-memory stores — same pattern as canonicalStore / embeddingIndex
-// Will be replaced by Prisma/Supabase when DATABASE_URL is set.
+// Persist teachers/sessions to disk for dev (survives HMR/restart), will be replaced by Prisma/Supabase when DATABASE_URL is set.
+const DATA_DIR = join(process.cwd(), ".tmp");
+const DATA_FILE = join(DATA_DIR, "teacher-store.json");
 
 const teachers = new Map<string, Teacher>();
 const teacherByEmail = new Map<string, string>(); // email -> teacherId
 const teacherSessions = new Map<string, { teacherId: string; expiresAt: number }>(); // token -> session
 const magicTokens = new Map<string, { email: string; name: string; expiresAt: number }>(); // token -> pending magic link
+
+function loadFromDisk() {
+  try {
+    if (!existsSync(DATA_FILE)) return;
+    const raw = readFileSync(DATA_FILE, "utf-8");
+    const data = JSON.parse(raw) as {
+      teachers?: [string, Teacher][];
+      teacherByEmail?: [string, string][];
+      teacherSessions?: [string, { teacherId: string; expiresAt: number }][];
+      teacherExercises?: [string, TeacherExercise][];
+      teacherExercisesByCode?: [string, string][];
+      teacherExercisesByTeacher?: [string, string[]][];
+      studentIdentities?: [string, StudentIdentity][];
+      studentIdentitiesByExercise?: [string, string[]][];
+    };
+    if (data.teachers) for (const [k, v] of data.teachers) teachers.set(k, v);
+    if (data.teacherByEmail) for (const [k, v] of data.teacherByEmail) teacherByEmail.set(k, v);
+    if (data.teacherSessions) for (const [k, v] of data.teacherSessions) teacherSessions.set(k, v);
+    if (data.teacherExercises) for (const [k, v] of data.teacherExercises) teacherExercises.set(k, v);
+    if (data.teacherExercisesByCode) for (const [k, v] of data.teacherExercisesByCode) teacherExercisesByCode.set(k, v);
+    if (data.teacherExercisesByTeacher) for (const [k, v] of data.teacherExercisesByTeacher) teacherExercisesByTeacher.set(k, new Set(v));
+    if (data.studentIdentities) for (const [k, v] of data.studentIdentities) studentIdentities.set(k, v);
+    if (data.studentIdentitiesByExercise) for (const [k, v] of data.studentIdentitiesByExercise) studentIdentitiesByExercise.set(k, new Set(v));
+  } catch {}
+}
+
+function saveToDisk() {
+  try {
+    mkdirSync(DATA_DIR, { recursive: true });
+    const data = {
+      teachers: [...teachers.entries()],
+      teacherByEmail: [...teacherByEmail.entries()],
+      teacherSessions: [...teacherSessions.entries()],
+      teacherExercises: [...teacherExercises.entries()],
+      teacherExercisesByCode: [...teacherExercisesByCode.entries()],
+      teacherExercisesByTeacher: [...teacherExercisesByTeacher.entries()].map(([k, v]) => [k, [...v]] as [string, string[]]),
+      studentIdentities: [...studentIdentities.entries()],
+      studentIdentitiesByExercise: [...studentIdentitiesByExercise.entries()].map(([k, v]) => [k, [...v]] as [string, string[]]),
+    };
+    writeFileSync(DATA_FILE, JSON.stringify(data), "utf-8");
+  } catch {}
+}
+
+// Load once at module init (dev HMR will re-execute, but file persists)
+loadFromDisk();
 
 const teacherExercises = new Map<string, TeacherExercise>(); // id -> exercise
 const teacherExercisesByCode = new Map<string, string>(); // code -> id
@@ -41,6 +90,7 @@ export function createTeacher(email: string, name: string): Teacher {
   const t: Teacher = { id, name: name.trim() || email.split("@")[0], email: email.toLowerCase(), created_at: new Date().toISOString() };
   teachers.set(id, t);
   teacherByEmail.set(email.toLowerCase(), id);
+  saveToDisk();
   return t;
 }
 
@@ -48,6 +98,7 @@ export function createMagicToken(email: string, name: string): { token: string; 
   const token = randomBytes(24).toString("hex");
   const expiresAt = Date.now() + 15 * 60 * 1000; // 15 min
   magicTokens.set(token, { email: email.toLowerCase(), name, expiresAt });
+  saveToDisk();
   return { token, expiresAt };
 }
 
@@ -56,9 +107,11 @@ export function consumeMagicToken(token: string): { email: string; name: string 
   if (!rec) return null;
   if (Date.now() > rec.expiresAt) {
     magicTokens.delete(token);
+    saveToDisk();
     return null;
   }
   magicTokens.delete(token);
+  saveToDisk();
   return { email: rec.email, name: rec.name };
 }
 
@@ -66,6 +119,7 @@ export function createTeacherSession(teacherId: string): { token: string; expire
   const token = randomBytes(24).toString("hex");
   const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
   teacherSessions.set(token, { teacherId, expiresAt });
+  saveToDisk();
   return { token, expiresAt };
 }
 
@@ -74,6 +128,7 @@ export function getTeacherBySessionToken(token: string): Teacher | null {
   if (!sess) return null;
   if (Date.now() > sess.expiresAt) {
     teacherSessions.delete(token);
+    saveToDisk();
     return null;
   }
   return teachers.get(sess.teacherId) ?? null;
@@ -81,6 +136,7 @@ export function getTeacherBySessionToken(token: string): Teacher | null {
 
 export function deleteTeacherSession(token: string) {
   teacherSessions.delete(token);
+  saveToDisk();
 }
 
 // --- TeacherExercise ---
@@ -126,6 +182,7 @@ export function createTeacherExercise(data: Omit<TeacherExercise, "id" | "code" 
   teacherExercisesByCode.set(code, id);
   if (!teacherExercisesByTeacher.has(data.teacher_id)) teacherExercisesByTeacher.set(data.teacher_id, new Set());
   teacherExercisesByTeacher.get(data.teacher_id)!.add(id);
+  saveToDisk();
   return ex;
 }
 
@@ -168,6 +225,7 @@ export function updateTeacherExercise(id: string, updates: Partial<TeacherExerci
     teacherExercisesByCode.set(updates.code, id);
   }
   teacherExercises.set(id, next);
+  saveToDisk();
   return next;
 }
 
@@ -177,6 +235,7 @@ export function deleteTeacherExercise(id: string): boolean {
   teacherExercises.delete(id);
   teacherExercisesByCode.delete(ex.code);
   teacherExercisesByTeacher.get(ex.teacher_id)?.delete(id);
+  saveToDisk();
   return true;
 }
 
@@ -189,6 +248,7 @@ export function createStudentIdentity(exerciseId: string, displayName: string): 
   studentIdentities.set(join_token, si);
   if (!studentIdentitiesByExercise.has(exerciseId)) studentIdentitiesByExercise.set(exerciseId, new Set());
   studentIdentitiesByExercise.get(exerciseId)!.add(join_token);
+  saveToDisk();
   return si;
 }
 
@@ -213,6 +273,7 @@ export function clearTeacherStores() {
   teacherExercisesByTeacher.clear();
   studentIdentities.clear();
   studentIdentitiesByExercise.clear();
+  saveToDisk();
 }
 
 export function getTeacherCounts() {
