@@ -119,7 +119,9 @@ export async function POST(req: NextRequest) {
           }
           // For draft, we want the exercise but not yet assigned a code — return it as draft
           const r = result as { exercise: import("@/lib/exercise/types").Exercise; canonical?: { id: string }; meta?: unknown; matchMethod?: string };
-          // Convert canonical steps to draft steps for teacher review
+          const isGeneric = r.exercise.examples.length === 1 && r.exercise.examples[0].input === "exemple entrée";
+          const warnings: string[] = [];
+          if (isGeneric) warnings.push("Exemples génériques — ajoute 1-2 exemples réalistes avant de publier.");
           send("progress", { stage: "done", status: "done", progress: 100, label: "Brouillon prêt" });
           send("done", {
             isExercise: true,
@@ -128,6 +130,8 @@ export async function POST(req: NextRequest) {
             meta: (r as unknown as { meta?: unknown }).meta,
             suggestions,
             matchMethod: r.matchMethod,
+            warnings: warnings.length ? warnings : undefined,
+            isGeneric,
           });
         } catch (e) {
           send("error", { error: e instanceof Error ? e.message : String(e) });
@@ -153,6 +157,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ isExercise: false, clarification: r.clarification, detectedLanguage: r.detectedLanguage, suggestions }, { headers });
     }
     const r = result as { exercise: import("@/lib/exercise/types").Exercise; canonical?: { id: string }; meta?: unknown; matchMethod?: string };
+    // Detect low-confidence draft (generic examples) to warn teacher — not blocking, but visible (addendum Q1: warn, not block)
+    const isGeneric = r.exercise.examples.length === 1 && r.exercise.examples[0].input === "exemple entrée";
+    const warnings: string[] = [];
+    if (isGeneric) warnings.push("Exemples génériques détectés — l'IA n'a pas trouvé d'exemple concret dans l'énoncé. Ajoute 1-2 exemples réalistes (ex: Stylo 10 2 → 24.0) avant de publier.");
+    if (r.exercise.steps && r.exercise.steps.some((s) => s.title === "Gérer le cas limite" && r.exercise.examples[0]?.input?.split(/\n/).length === 6)) {
+      warnings.push("Étapes génériques : 'Gérer le cas limite' peu pertinent pour n=2 fixe — envisage 'Calcul TVA (20%)'.");
+    }
     return NextResponse.json(
       {
         isExercise: true,
@@ -161,6 +172,8 @@ export async function POST(req: NextRequest) {
         meta: (r as unknown as { meta?: unknown }).meta,
         suggestions,
         matchMethod: r.matchMethod,
+        warnings: warnings.length ? warnings : undefined,
+        isGeneric,
       },
       { headers }
     );

@@ -366,7 +366,22 @@ export default function NewExercisePage() {
           {draft && (
             <div className="rounded-xl border border-black/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
               <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">Brouillon à relire</h3>
-              <p className="mt-1 text-sm font-medium text-zinc-900 dark:text-zinc-100">{(draft as { title?: string }).title as string}</p>
+              {(draft as { examples?: Array<{ input: string }> }).examples?.[0]?.input === "exemple entrée" ? (
+                <div className="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                  <p className="font-medium">⚠ Exemples génériques détectés</p>
+                  <p className="mt-1 leading-5">L'IA n'a pas trouvé d'exemple concret dans l'énoncé et a renvoyé `exemple entrée`. Remplace par 1-2 exemples réalistes avant de publier.</p>
+                  <p className="mt-1 font-mono text-xs">Pour une facture 2 articles TVA 20% : input `Stylo\n10\n2\nCahier\n5\n3` → output `Stylo: 24.0\nCahier: 18.0\nTotal: 42.0`</p>
+                  <button onClick={handleUseDraft} className="mt-2 rounded-full bg-amber-600 px-3 py-1 text-xs font-medium text-white hover:bg-amber-700">
+                    Corriger dans l'onglet Manuel →
+                  </button>
+                </div>
+              ) : null}
+              {((draft as { steps?: Array<{ title: string }> }).steps?.some((s) => s.title === "Gérer le cas limite") && (draft as { examples?: Array<{ input: string }> }).examples?.[0]?.input?.split("\n").length === 6) ? (
+                <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700 dark:text-amber-200">
+                  Astuce : `Gérer le cas limite` est peu pertinent pour `n=2` fixe — envisage `Calcul TVA (20%)` à la place.
+                </div>
+              ) : null}
+              <p className="mt-2 text-sm font-medium text-zinc-900 dark:text-zinc-100">{(draft as { title?: string }).title as string}</p>
               <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-zinc-50 p-2 text-xs text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100">{JSON.stringify(draft, null, 2).slice(0, 3000)}</pre>
               <button onClick={handleUseDraft} className="mt-3 w-full rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900">
                 Utiliser ce brouillon dans l'onglet Manuel →
