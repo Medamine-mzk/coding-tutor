@@ -1,4 +1,4 @@
-# Mchi Nekteb — Guided Coding Tutor
+# PyMentor — Guided Coding Tutor
 
 > **Vision:** Tunisian students learn Python by doing, with an AI tutor that guides but never hands over the solution. `PROJECT_SPEC.md` is the source of truth.
 

@@ -20,7 +20,7 @@ describe("a11y — landmarks and labels", () => {
     );
     expect(screen.getByRole("banner")).toBeInTheDocument();
     expect(screen.getByLabelText("Primary")).toBeInTheDocument();
-    expect(screen.getByLabelText(/Mchi Nekteb — home/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/PyMentor — home/i)).toBeInTheDocument();
   });
 
   it("Library has search with aria-label and filters", () => {

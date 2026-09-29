@@ -50,3 +50,5 @@ next-env.d.ts
 
 # local dev persistence (teacher store JSON) — ephemeral on serverless
 .tmp/
+
+.vercel

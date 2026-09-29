@@ -1,4 +1,4 @@
-# Project Spec: Guided Coding Tutor (working title: "Mchi Nekteb" / "Code Guide")
+# Project Spec: Guided Coding Tutor ("PyMentor" / "Code Guide")
 
 > Hand this file to Claude Code as the source of truth. Build in the order given in **Section 12**. Ask before making assumptions that change scope.
 

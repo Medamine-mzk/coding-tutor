@@ -1,8 +1,8 @@
 {
-  "name": "mchi-nekteb",
+  "name": "pymentor",
   "version": "0.1.0",
   "private": true,
-  "description": "Guided Coding Tutor — Mchi Nekteb / Code Guide — Python by doing with Socratic AI",
+  "description": "Guided Coding Tutor — PyMentor — Python by doing with Socratic AI",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

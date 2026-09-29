@@ -1,4 +1,4 @@
-// Mchi Nekteb — Service Worker for offline + Pyodide cache
+// PyMentor — Service Worker for offline + Pyodide cache
 // Version bumps invalidate old caches
 const CACHE_VERSION = "v1";
 const APP_CACHE = `app-${CACHE_VERSION}`;

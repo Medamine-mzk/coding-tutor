@@ -20,8 +20,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Mchi Nekteb — Code Guide",
-    template: "%s — Mchi Nekteb",
+    default: "PyMentor — Code Guide",
+    template: "%s — PyMentor",
   },
   description:
     "Apprends Python en faisant — tuteur guidé qui ne donne jamais la solution. Learn Python by doing — guided, never given. تعلم بايثون بالممارسة.",

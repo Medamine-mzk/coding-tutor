@@ -1,4 +1,4 @@
-# Guided Coding Tutor (Mchi Nekteb)
+# Guided Coding Tutor (PyMentor)
 
 A web platform that helps Tunisian secondary and university students learn Python by doing, with an AI tutor that guides but never hands over the solution.
 
