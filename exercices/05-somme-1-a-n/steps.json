@@ -1,0 +1,57 @@
+[
+  {
+    "id": "s1",
+    "order": 1,
+    "title": "Lire",
+    "goal": "Lire les entrées avec input()",
+    "check_type": "ast_check",
+    "io_test": null,
+    "function_test": null,
+    "ast_check": {
+      "must_contain": [
+        "input"
+      ]
+    },
+    "hint_seeds": {},
+    "exerciseId": "tmp",
+    "successCriteria": "ast_check",
+    "hintSeeds": []
+  },
+  {
+    "id": "s2",
+    "order": 2,
+    "title": "Traiter",
+    "goal": "Appliquer la logique métier",
+    "check_type": "ast_check",
+    "io_test": null,
+    "function_test": null,
+    "ast_check": {
+      "must_contain": [
+        "For"
+      ]
+    },
+    "hint_seeds": {},
+    "exerciseId": "tmp",
+    "successCriteria": "ast_check",
+    "hintSeeds": []
+  },
+  {
+    "id": "s3",
+    "order": 3,
+    "title": "Afficher",
+    "goal": "Afficher le résultat avec print()",
+    "check_type": "io_test",
+    "io_test": {
+      "stdin": [
+        "5"
+      ],
+      "expected_stdout": "15"
+    },
+    "function_test": null,
+    "ast_check": null,
+    "hint_seeds": {},
+    "exerciseId": "tmp",
+    "successCriteria": "io_test",
+    "hintSeeds": []
+  }
+]

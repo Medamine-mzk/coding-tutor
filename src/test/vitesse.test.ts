@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildExerciseFromHeuristics, detectLanguage } from "@/lib/exercise/parser";
 import { generateSkeleton } from "@/lib/exercise/skeleton";
-import { generateMilestones } from "@/lib/exercise/milestones";
 import { generateHiddenTests } from "@/lib/exercise/tests";
 import { generateHeuristicReference } from "@/lib/exercise/reference";
 import { cannedFallback } from "@/lib/tutor/prompt";
@@ -24,14 +23,11 @@ describe("vitesse exercise — ex_h308z92 regression", () => {
     expect(ex.difficulty).toBe(2);
   });
 
-  it("generates 6 milestones for vitesse (including conversion and division by zero)", () => {
+  it("detects math concept and examples for vitesse (hints come from comments)", () => {
     const ex = buildExerciseFromHeuristics(VITESSE_TEXT, "typed", "fr");
-    const ms = generateMilestones(ex);
-    expect(ms.length).toBe(6);
-    const titles = ms.map((m) => m.title);
-    expect(titles).toContain("Convertir les unités");
-    expect(titles).toContain("Calculer la vitesse");
-    expect(titles).toContain("Gérer la division par zéro");
+    expect(ex.concepts).toEqual(["math"]);
+    expect(ex.examples.length).toBeGreaterThan(0);
+    expect((ex as unknown as Record<string, unknown>)["milestones"]).toBeUndefined();
   });
 
   it("generates hidden tests for vitesse (zero, division by zero, 1km1min, normal)", () => {
@@ -42,13 +38,14 @@ describe("vitesse exercise — ex_h308z92 regression", () => {
     expect(hidden[1].category).toMatch(/division by zero/i);
   });
 
-  it("generates minimal skeleton for vitesse (not sum)", () => {
+  it("generates leak-free skeleton for vitesse (title only, no conversions)", () => {
     const ex = buildExerciseFromHeuristics(VITESSE_TEXT, "typed", "fr");
     const skel = generateSkeleton(ex);
-    expect(skel).toContain("distance_km");
-    expect(skel).toContain("temps_min");
-    expect(skel).toContain("TODO: convertir");
-    expect(skel).not.toContain("a = int(input(\"a: \"))");
+    expect(skel).toContain(ex.title);
+    expect(skel).toContain("Écris ton code ici");
+    expect(skel).not.toContain("distance_km");
+    expect(skel).not.toContain("1000");
+    expect(skel).not.toContain("input(");
   });
 
   it("heuristic reference for vitesse handles conversion and division by zero", () => {

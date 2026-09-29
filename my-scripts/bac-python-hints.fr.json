@@ -1,0 +1,338 @@
+{
+  "version": "1.1.0",
+  "locale": "fr-TN",
+  "curriculum": "Tunisian BAC Informatique - Python",
+  "policy": {
+    "maxHintLevel": 3,
+    "neverGiveFullSolution": true,
+    "levels": {
+      "1": "question_socratique",
+      "2": "rappel_et_syntaxe",
+      "3": "mini_exemple_independant"
+    }
+  },
+  "cards": [
+    {
+      "id": "io-input",
+      "concept": "input",
+      "title": "Lire une donnée",
+      "tags": ["lire", "saisir", "entrée", "input", "n", "valeur"],
+      "priority": 30,
+      "detect": {"referenceAny": ["input("], "studentAny": ["input("], "errorsAny": ["EOFError"]},
+      "hints": [
+        "Quelle donnée faut-il obtenir avant de commencer le traitement ?",
+        "input() renvoie une chaîne. Si l'énoncé demande un entier ou un réel, pense à convertir au moment de la lecture.",
+        "Mini-exemple indépendant : age = int(input()). Pour deux valeurs annoncées sur deux lignes, fais deux lectures séparées."
+      ],
+      "documentation": {"syntax": "x = int(input())", "note": "Dans ce projet, deux valeurs sont lues avec deux appels à input(), et un tableau de n valeurs avec n lectures."}
+    },
+    {
+      "id": "io-print",
+      "concept": "print",
+      "title": "Afficher un résultat",
+      "tags": ["afficher", "écrire", "sortie", "print", "résultat"],
+      "priority": 25,
+      "detect": {"referenceAny": ["print("], "studentAny": ["print("], "errorsAny": []},
+      "hints": [
+        "Quel résultat exact l'énoncé demande-t-il d'afficher ?",
+        "Utilise print() seulement après avoir calculé le résultat demandé. Respecte exactement le format attendu.",
+        "Mini-exemple indépendant : print(total). Pour un tableau, affiche chaque case séparément dans une boucle."
+      ],
+      "documentation": {"syntax": "print(expression)", "note": "Évite les f-strings. N'affiche pas directement tout un tableau avec print(T)."}
+    },
+    {
+      "id": "types-conversion",
+      "concept": "conversion",
+      "title": "Convertir le type",
+      "tags": ["entier", "réel", "booléen", "chaîne", "convertir", "int", "float", "str", "bool"],
+      "priority": 40,
+      "detect": {"referenceAny": ["int(", "float(", "str(", "bool("], "studentAny": ["int(", "float(", "str(", "bool("], "errorsAny": ["ValueError", "TypeError"]},
+      "hints": [
+        "Le type de la valeur lue correspond-il au calcul que tu veux faire ?",
+        "input() produit du texte. Utilise int(...) pour un entier et float(...) pour un réel.",
+        "Mini-exemple indépendant : prix = float(input()), puis total = prix * 3."
+      ],
+      "documentation": {"syntax": "n = int(input())\nx = float(input())", "note": "Choisis la conversion selon l'énoncé, pas selon l'exemple."}
+    },
+    {
+      "id": "variables-init",
+      "concept": "initialisation",
+      "title": "Initialiser une variable",
+      "tags": ["initialiser", "compteur", "accumulateur", "somme", "produit", "variable"],
+      "priority": 35,
+      "detect": {"referenceAny": ["= 0", "=0", "= 1", "=1"], "studentAny": [], "errorsAny": ["NameError", "referenced before assignment"]},
+      "hints": [
+        "Quelle valeur doit avoir cette variable avant le premier calcul ?",
+        "Un compteur ou une somme commence souvent à 0. Un produit commence souvent à 1.",
+        "Mini-exemple indépendant : total = 0, puis total = total + valeur dans la répétition."
+      ],
+      "documentation": {"syntax": "compteur = 0", "note": "Initialise avant la boucle, puis mets à jour dans la boucle."}
+    },
+    {
+      "id": "operators-arithmetic",
+      "concept": "opérateurs",
+      "title": "Choisir l'opérateur",
+      "tags": ["calcul", "somme", "reste", "quotient", "moyenne", "division", "modulo"],
+      "priority": 20,
+      "detect": {"referenceAny": [" + ", " - ", " * ", " / ", " // ", " % "], "studentAny": [" + ", " - ", " * ", " / ", " // ", " % "], "errorsAny": ["ZeroDivisionError"]},
+      "hints": [
+        "As-tu besoin d'une division réelle, d'un quotient entier ou d'un reste ?",
+        "/ donne une division réelle, // le quotient entier et % le reste.",
+        "Mini-exemple indépendant : q = 17 // 5 et r = 17 % 5."
+      ],
+      "documentation": {"syntax": "q = a // b\nr = a % b", "note": "Vérifie que le diviseur n'est pas nul."}
+    },
+    {
+      "id": "condition-if",
+      "concept": "if",
+      "title": "Tester une condition",
+      "tags": ["si", "condition", "cas", "if", "elif", "else", "comparer"],
+      "priority": 60,
+      "detect": {"referenceAny": ["if ", "elif ", "else:"], "studentAny": ["if ", "elif ", "else:"], "errorsAny": ["expected ':'", "IndentationError"]},
+      "hints": [
+        "Quelle proposition doit être vraie pour exécuter ce bloc ?",
+        "Écris if condition: puis indente les instructions. Ajoute elif pour un autre test et else pour le dernier cas.",
+        "Mini-exemple indépendant : if note >= 10: print(\"admis\") else: print(\"non admis\"). Mets chaque bloc sur ses propres lignes."
+      ],
+      "documentation": {"syntax": "if condition:\n    instruction\nelif autre_condition:\n    instruction\nelse:\n    instruction", "note": "Utilise == pour comparer et = pour affecter."}
+    },
+    {
+      "id": "boolean-logic",
+      "concept": "booléens",
+      "title": "Combiner des conditions",
+      "tags": ["et", "ou", "non", "intervalle", "and", "or", "not", "booléen"],
+      "priority": 30,
+      "detect": {"referenceAny": [" and ", " or ", "not "], "studentAny": [" and ", " or ", "not "], "errorsAny": []},
+      "hints": [
+        "Toutes les conditions doivent-elles être vraies, ou une seule suffit-elle ?",
+        "Utilise and si les deux conditions sont nécessaires, or si une seule suffit, et not pour inverser.",
+        "Mini-exemple indépendant : valide = age >= 16 and age <= 20."
+      ],
+      "documentation": {"syntax": "condition1 and condition2", "note": "Écris chaque comparaison complètement pour garder le test clair."}
+    },
+    {
+      "id": "loop-for-range",
+      "concept": "for",
+      "title": "Répéter un nombre connu de fois",
+      "tags": ["pour", "répéter", "parcourir", "for", "range", "fois", "indices"],
+      "priority": 70,
+      "detect": {"referenceAny": ["for ", "range("], "studentAny": ["for ", "range("], "errorsAny": ["object is not iterable"]},
+      "hints": [
+        "Connais-tu à l'avance le nombre de répétitions ? Si oui, quelles sont la première et la dernière valeur de l'indice ?",
+        "Utilise for i in range(début, fin):. La valeur fin n'est pas incluse.",
+        "Mini-exemple indépendant : for i in range(0, 4): print(i) affiche les indices 0, 1, 2 et 3."
+      ],
+      "documentation": {"syntax": "for i in range(0, n):\n    instruction", "note": "Pour n cases, les indices vont de 0 à n-1."}
+    },
+    {
+      "id": "loop-while",
+      "concept": "while",
+      "title": "Répéter selon une condition",
+      "tags": ["tant que", "while", "répéter", "condition d'arrêt", "inconnu"],
+      "priority": 70,
+      "detect": {"referenceAny": ["while "], "studentAny": ["while "], "errorsAny": ["infinite loop"]},
+      "hints": [
+        "Quelle condition doit rester vraie pour continuer la répétition ?",
+        "Une boucle while a besoin d'une initialisation avant la boucle, d'une condition et d'une mise à jour dans la boucle.",
+        "Mini-exemple indépendant : i = 0; while i < 4: afficher i puis faire i = i + 1. Écris ces instructions sur des lignes séparées."
+      ],
+      "documentation": {"syntax": "i = 0\nwhile i < n:\n    instruction\n    i = i + 1", "note": "N'utilise pas break. Fais évoluer une variable pour rendre la condition fausse."}
+    },
+    {
+      "id": "arrays-create",
+      "concept": "arrays",
+      "title": "Créer un tableau",
+      "tags": ["tableau", "array", "vecteur", "cases", "numpy"],
+      "priority": 65,
+      "detect": {"referenceAny": ["array([0]*", "array([0] *"], "studentAny": ["array("], "errorsAny": ["array is not defined"]},
+      "hints": [
+        "Connais-tu n avant de créer le tableau ?",
+        "Après avoir lu n, crée un tableau de n cases initialisées à 0 avec array([0]*n).",
+        "Mini-exemple indépendant : après n = 5, T = array([0]*n) prépare cinq cases."
+      ],
+      "documentation": {"syntax": "from numpy import array\nn = int(input())\nT = array([0]*n)", "note": "Dans ce projet, utilise numpy.array et non une liste Python enrichie."}
+    },
+    {
+      "id": "arrays-fill",
+      "concept": "remplissage_tableau",
+      "title": "Remplir un tableau",
+      "tags": ["remplir", "saisir tableau", "éléments", "cases", "T[i]"],
+      "priority": 75,
+      "detect": {"referenceAny": ["T[i]", "input("], "studentAny": ["T[i]"], "errorsAny": []},
+      "hints": [
+        "Comment atteindre successivement chaque case de l'indice 0 à l'indice n-1 ?",
+        "Parcours les indices avec for i in range(0,n), puis affecte la valeur lue à T[i].",
+        "Mini-exemple indépendant : pour chaque i, écrire T[i] = int(input()). Les n valeurs sont lues sur n lignes."
+      ],
+      "documentation": {"syntax": "for i in range(0, n):\n    T[i] = int(input())", "note": "L'indice doit rester entre 0 et n-1."}
+    },
+    {
+      "id": "arrays-traverse",
+      "concept": "parcours_tableau",
+      "title": "Parcourir un tableau",
+      "tags": ["parcourir tableau", "chercher", "compter", "somme tableau", "afficher tableau"],
+      "priority": 70,
+      "detect": {"referenceAny": ["T[i]", "range(0, n)"], "studentAny": ["T[i]"], "errorsAny": ["IndexError", "out of bounds"]},
+      "hints": [
+        "Pour chaque indice i, quelle opération faut-il effectuer sur T[i] ?",
+        "Utilise une boucle sur range(0,n) et travaille sur T[i]. Vérifie que l'indice n'est jamais égal à n.",
+        "Mini-exemple indépendant : for i in range(0,n): print(T[i]) affiche les éléments un par un."
+      ],
+      "documentation": {"syntax": "for i in range(0, n):\n    utiliser T[i]", "note": "N'utilise pas print(T); affiche les cases séparément."}
+    },
+    {
+      "id": "string-find",
+      "concept": "find",
+      "title": "Chercher dans une chaîne",
+      "tags": ["chaîne", "caractère", "chercher", "position", "find", "sous-chaîne"],
+      "priority": 45,
+      "detect": {"referenceAny": [".find("], "studentAny": [".find("], "errorsAny": []},
+      "hints": [
+        "Veux-tu savoir si un texte existe ou connaître sa première position ?",
+        "find(...) donne la première position trouvée et -1 si le texte est absent.",
+        "Mini-exemple indépendant : p = mot.find(\"a\"), puis tester p != -1."
+      ],
+      "documentation": {"syntax": "position = texte.find(sous_chaine)", "note": "Teste le résultat contre -1 pour savoir si la recherche a réussi."}
+    },
+    {
+      "id": "string-upper",
+      "concept": "upper",
+      "title": "Mettre en majuscules",
+      "tags": ["majuscule", "upper", "chaîne", "texte"],
+      "priority": 35,
+      "detect": {"referenceAny": [".upper("], "studentAny": [".upper("], "errorsAny": []},
+      "hints": [
+        "La comparaison dépend-elle des minuscules et des majuscules ?",
+        "upper() produit une version en majuscules. Stocke le résultat si tu veux le réutiliser.",
+        "Mini-exemple indépendant : code = code.upper()."
+      ],
+      "documentation": {"syntax": "texte = texte.upper()", "note": "lower() est interdit dans ce projet; utilise upper() si une normalisation est nécessaire."}
+    },
+    {
+      "id": "string-slicing",
+      "concept": "slicing",
+      "title": "Extraire une partie",
+      "tags": ["extraire", "sous-chaîne", "tranche", "slice", "caractères"],
+      "priority": 40,
+      "detect": {"referenceAny": ["[", ":", "]"], "studentAny": ["[", ":", "]"], "errorsAny": []},
+      "hints": [
+        "Quels indices délimitent exactement la partie à conserver ?",
+        "texte[début:fin] prend les caractères de début jusqu'à fin exclue.",
+        "Mini-exemple indépendant : mot[0:3] prend les trois premiers caractères."
+      ],
+      "documentation": {"syntax": "partie = texte[debut:fin]", "note": "L'indice fin n'est pas inclus."}
+    },
+    {
+      "id": "function-return",
+      "concept": "fonction",
+      "title": "Définir une fonction",
+      "tags": ["fonction", "module", "def", "paramètre", "retourner", "return"],
+      "priority": 60,
+      "detect": {"referenceAny": ["def ", "return "], "studentAny": ["def ", "return "], "errorsAny": ["missing required positional argument"]},
+      "hints": [
+        "Quelles informations la fonction reçoit-elle, et quelle unique valeur doit-elle renvoyer ?",
+        "Déclare def nom(parametres):, calcule le résultat dans une variable, puis place un seul return à la fin.",
+        "Mini-exemple indépendant : une fonction double(x) calcule r = x * 2 puis retourne r à la fin."
+      ],
+      "documentation": {"syntax": "def nom(x):\n    resultat = expression\n    return resultat", "note": "Dans ce projet, garde un seul return par fonction."}
+    },
+    {
+      "id": "rounding",
+      "concept": "round",
+      "title": "Arrondir un résultat",
+      "tags": ["arrondir", "décimales", "round", "précision", "moyenne"],
+      "priority": 35,
+      "detect": {"referenceAny": ["round("], "studentAny": ["round("], "errorsAny": []},
+      "hints": [
+        "Combien de chiffres après la virgule l'énoncé demande-t-il ?",
+        "round(valeur, nombre_de_decimales) produit l'arrondi demandé.",
+        "Mini-exemple indépendant : y = round(x, 2)."
+      ],
+      "documentation": {"syntax": "resultat = round(valeur, 2)", "note": "N'arrondis qu'au moment demandé par l'énoncé."}
+    },
+    {
+      "id": "math-sqrt",
+      "concept": "sqrt",
+      "title": "Calculer une racine carrée",
+      "tags": ["racine", "sqrt", "math", "carrée"],
+      "priority": 35,
+      "detect": {"referenceAny": ["sqrt("], "studentAny": ["sqrt("], "errorsAny": ["math domain error"]},
+      "hints": [
+        "L'expression sous la racine est-elle positive ou nulle ?",
+        "Importe sqrt depuis math puis appelle sqrt(expression).",
+        "Mini-exemple indépendant : from math import sqrt, puis d = sqrt(25)."
+      ],
+      "documentation": {"syntax": "from math import sqrt\nr = sqrt(x)", "note": "Vérifie le domaine avant l'appel."}
+    },
+    {
+      "id": "random-randint",
+      "concept": "randint",
+      "title": "Générer un entier aléatoire",
+      "tags": ["aléatoire", "hasard", "randint", "random"],
+      "priority": 30,
+      "detect": {"referenceAny": ["randint("], "studentAny": ["randint("], "errorsAny": []},
+      "hints": [
+        "Quelles sont les deux bornes incluses demandées par l'énoncé ?",
+        "randint(a,b) génère un entier entre a et b, bornes incluses.",
+        "Mini-exemple indépendant : from random import randint, puis x = randint(1, 6)."
+      ],
+      "documentation": {"syntax": "from random import randint\nx = randint(a, b)", "note": "Les deux bornes peuvent être obtenues."}
+    },
+    {
+      "id": "files-open",
+      "concept": "fichiers",
+      "title": "Ouvrir un fichier",
+      "tags": ["fichier", "open", "lecture", "écriture", "pickle"],
+      "priority": 45,
+      "detect": {"referenceAny": ["open(", "pickle"], "studentAny": ["open(", "pickle"], "errorsAny": ["FileNotFoundError"]},
+      "hints": [
+        "Le fichier doit-il être ouvert en lecture ou en écriture ? Est-il texte ou binaire ?",
+        "Choisis le mode demandé : r ou w pour le texte, rb ou wb avec pickle.",
+        "Mini-exemple indépendant : f = open(\"donnees.txt\", \"r\"), effectuer le travail, puis f.close()."
+      ],
+      "documentation": {"syntax": "f = open(nom, mode)\n# traitement\nf.close()", "note": "Avec pickle, utilise un mode binaire."}
+    },
+    {
+      "id": "debug-index",
+      "concept": "IndexError",
+      "title": "Corriger un indice",
+      "tags": ["erreur", "indice", "IndexError", "tableau", "chaîne"],
+      "priority": 100,
+      "detect": {"referenceAny": [], "studentAny": [], "errorsAny": ["IndexError", "out of bounds", "out of range"]},
+      "hints": [
+        "Quelle valeur prend l'indice au moment de l'erreur ? Est-elle entre 0 et la longueur moins 1 ?",
+        "Pour n éléments, les indices valides vont de 0 à n-1. Vérifie surtout la borne finale de range.",
+        "Mini-exemple indépendant : range(0,n) convient pour parcourir n cases; range(0,n+1) tente une case de trop."
+      ],
+      "documentation": {"syntax": "for i in range(0, n):\n    utiliser T[i]", "note": "La borne finale de range est exclue."}
+    },
+    {
+      "id": "vitesse-conversion",
+      "concept": "conversion_unites",
+      "title": "Convertir distance et temps",
+      "tags": ["vitesse", "distance", "temps", "kilomètre", "minute", "conversion", "mètre", "seconde"],
+      "priority": 55,
+      "detect": {"referenceAny": ["vitesse", "distance_m", "* 1000", "* 60"], "studentAny": ["distance_km", "temps_min", "vitesse"], "errorsAny": ["ZeroDivisionError"]},
+      "hints": [
+        "Combien vaut 1 km en mètres ? Et 1 minute en secondes ?",
+        "Convertis d'abord : distance_m = distance_km * 1000 et temps_s = temps_min * 60, puis calcule vitesse = distance_m / temps_s.",
+        "Mini-exemple indépendant : avec distance 2 (km) et temps 1 (min), on obtient distance_m = 2000 et temps_s = 60, soit vitesse = 33.33. Adapte l'idée à tes variables."
+      ],
+      "documentation": {"syntax": "distance_m = distance_km * 1000\ntemps_s = temps_min * 60\nvitesse = distance_m / temps_s", "note": "Si temps_s vaut 0, affiche 0 au lieu de diviser."}
+    },
+    {
+      "id": "auth-login",
+      "concept": "condition",
+      "title": "Vérifier login et mot de passe",
+      "tags": ["login", "mot de passe", "admin", "authentification", "bienvenue", "chaîne"],
+      "priority": 55,
+      "detect": {"referenceAny": ["login", "admin", "== \"admin\""], "studentAny": ["login", "mdp", "admin"], "errorsAny": []},
+      "hints": [
+        "Que faut-il lire en premier : le login ou le mot de passe ? Avec quelle fonction ?",
+        "Lis chaque chaîne avec input(), puis compare avec == en n'oubliant pas les guillemets autour de \"admin\" et le mot and.",
+        "Mini-exemple indépendant : if x == \"a\" and y == \"b\": print(\"ok\") else: print(\"non\"). Adapte l'idée à admin."
+      ],
+      "documentation": {"syntax": "login = input()\nmdp = input()\nif login == \"admin\" and mdp == \"admin\":\n    print(\"Bienvenue\")\nelse:\n    print(\"incorrecte\")", "note": "Piste à adapter, pas à recopier sans comprendre."}
+    }
+  ]
+}

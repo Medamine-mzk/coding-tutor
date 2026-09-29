@@ -11,23 +11,15 @@ export type Concept =
   | "loops"
   | "conditionals"
   | "lists"
+  | "arrays"
   | "functions"
   | "recursion"
   | "dictionaries"
   | "strings"
   | "math";
 
-export type Milestone = {
-  id: string;
-  exerciseId: string;
-  order: number;
-  title: string;
-  successCriteria: string; // internal — now typed as Step.check_type; kept for compat
-  hintSeeds: string[]; // internal
-};
-
-// Re-export Step as Milestone alias for incremental migration; new code should import from stepPlan
-export type { Step, StepPlan, LocalizedCopy, CanonicalExercise, ExerciseSubmission } from "./stepPlan";
+// Steps/milestones removed — hints are now comment-based (commentHints.ts)
+export type { CanonicalExercise, ExerciseSubmission } from "./stepPlan";
 
 export type TestCase = {
   id: string;
@@ -54,10 +46,6 @@ export type Exercise = {
   difficulty: 1 | 2 | 3 | 4 | 5;
   concepts: Concept[];
   source: ExerciseSource;
-  milestones: Milestone[]; // legacy view; new code should read StepPlan / steps
-  steps?: import("./stepPlan").Step[]; // redacted client view per addendum 1.4 — only current step has goal/check
-  currentStepOrder?: number; // 1-indexed order of the step currently in progress
-  step_plan_version?: number; // pinned per Session
   visibleTests: TestCase[];
   hiddenTests: TestCase[];
   hiddenTestsRef?: string;
@@ -69,17 +57,19 @@ export type ReferenceSolution = {
   code: string; // server-only, never sent to browser
 };
 
+export type RevealedHint = { pair: number; level: number };
+
 export type Session = {
   id: string;
   userId?: string;
   exerciseId: string;
   canonicalExerciseId?: string | null;
-  stepPlanVersion: number; // pinned at start
-  currentStepOrder: number; // 1-indexed — which step is currently in progress (progressive disclosure, addendum 1.4)
   currentCode: string;
   status: "in_progress" | "completed" | "abandoned";
   startedAt: string;
   finishedAt?: string;
+  // Comment-based hints: paires (commentaire/code) révélées, niveau 1-5 chacune.
+  revealedHints?: RevealedHint[];
   // Teacher pivot: lightweight per-exercise identity, nullable to keep practice mode (addendum Q1)
   student_identity_id?: string | null;
   studentIdentityId?: string | null; // alias for convenience

@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { POST } from "@/app/api/tutor/chat/route";
 import { NextRequest } from "next/server";
+import { responseMatchesLocale } from "@/lib/tutor/langDetect";
 
 function makeReq(body: unknown, ip = "1.2.3.4") {
   return new NextRequest("http://localhost/api/tutor/chat", {
@@ -153,5 +154,44 @@ describe("POST /api/tutor/chat", () => {
     const res = await POST(makeReq({ locale: "fr", hintHistory: [], codeChangedSinceLastHint: true, hasRunSinceLastHint: true }));
     expect(res.headers.get("x-hint-level")).toBeTruthy();
     expect(res.headers.get("content-type")).toContain("text/event-stream");
+  });
+
+  it("falls back to French when the LLM answers in English for fr locale", async () => {
+    delete process.env.GEMINI_API_KEY;
+    process.env.GROQ_API_KEY = "test-key-for-lang-fallback";
+    const english =
+      "Before writing code, let's clarify the problem. In your own words, what are the base cases?";
+    const fetchMock = vi.fn(async (url: unknown) => {
+      if (String(url).includes("groq.com")) {
+        return new Response(JSON.stringify({ choices: [{ message: { content: english } }] }), {
+          headers: { "content-type": "application/json" },
+        });
+      }
+      throw new Error("unexpected fetch " + String(url));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const res = await POST(
+        makeReq(
+          {
+            locale: "fr",
+            code: 'print("hi")',
+            exercise: { id: "ex_1", title: "Somme", statement: "somme", ioSpec: "io", constraints: [], examples: [], concepts: ["loops"], milestones: [] },
+            hintHistory: [],
+            codeChangedSinceLastHint: true,
+            hasRunSinceLastHint: true,
+          },
+          "7.7.7.7"
+        )
+      );
+      const { text } = await readSSE(res);
+      expect(text.length).toBeGreaterThan(0);
+      // The English LLM text must NOT leak through; the French fallback must match fr
+      expect(text).not.toContain("clarify the problem");
+      expect(responseMatchesLocale(text, "fr")).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+      delete process.env.GROQ_API_KEY;
+    }
   });
 });

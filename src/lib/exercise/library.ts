@@ -1,5 +1,4 @@
 import type { Exercise } from "./types";
-import { generateMilestones } from "./milestones";
 import { visibleTestsFromExamples, generateHiddenTests } from "./tests";
 import { buildExerciseFromHeuristics } from "./parser";
 
@@ -315,8 +314,7 @@ function buildExercise(raw: RawLib): Exercise {
     uiLocale: raw.uiLocale,
   };
 
-  // Regenerate milestones and tests for library (more accurate)
-  ex.milestones = generateMilestones(ex);
+  // Regenerate tests for library (more accurate)
   ex.visibleTests = visibleTestsFromExamples(ex);
   // For library, hidden tests are curated per exercise — use generator but ensure at least 2
   const hidden = generateHiddenTests(ex);

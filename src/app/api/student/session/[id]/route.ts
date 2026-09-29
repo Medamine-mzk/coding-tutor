@@ -20,9 +20,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
   }
 
-  const b = body as Partial<import("@/lib/exercise/types").Session> & { currentStepOrder?: number; currentCode?: string; status?: string };
+  const b = body as Partial<import("@/lib/exercise/types").Session> & { currentCode?: string; status?: string };
   const patch: Record<string, unknown> = {};
-  if (typeof b.currentStepOrder === "number") patch.currentStepOrder = Math.max(1, Math.min(7, b.currentStepOrder));
   if (typeof b.currentCode === "string") patch.currentCode = b.currentCode;
   if (typeof b.status === "string" && ["in_progress", "completed", "abandoned"].includes(b.status)) patch.status = b.status;
   if (b.finishedAt) patch.finishedAt = b.finishedAt;

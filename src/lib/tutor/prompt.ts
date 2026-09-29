@@ -1,5 +1,6 @@
 import type { HintLevel, TutorContext } from "./types";
 import { HINT_LEVEL_NAMES, HINT_LEVEL_DESCRIPTIONS } from "./types";
+import { topCardHint } from "./hintCards";
 
 export function buildSystemPrompt(allowedLevel: HintLevel, locale: "fr" | "ar" | "en"): string {
   const lines = [
@@ -21,14 +22,20 @@ export function buildSystemPrompt(allowedLevel: HintLevel, locale: "fr" | "ar" |
     "- Max ~120 words unless explaining a concept.",
     "",
     "CONTEXT PROVIDED EACH TURN",
-    "- Exercise statement, milestones (titles + success criteria), concepts",
+    "- Exercise statement, concepts",
     "- Student's current code, last run result, latest test report",
     "- Hint history and current milestone",
+    "",
+    "BAC PYTHON CONSTRAINTS (Tunisia, 2022/2023 — student may ONLY use these)",
+    "- Allowed: input()/print(), int/float/bool/str, numpy.array (T=array([0]*n), access T[i]), dict, open/pickle, if/elif/else, for range()/while WITHOUT break, def/return single simple value, + - * / // %, == != > >= < <= in, not/and/or, round/sqrt/randint/len/find/upper/slicing/+, string concat with +.",
+    "- Forbidden: break, print(T) (print whole array), map/split/strip/lower/max/min/sum/sorted/join/reversed, **, f-strings, ternary, tuple unpacking. Each input() call reads one line; arrays are read and printed element by element.",
+    "- Your hints must ONLY suggest allowed constructs. Never suggest a forbidden function as the fix.",
   ];
-  // For ar, we keep prompt in English (LLM internal) but note to respond in ar
-  if (locale === "ar") lines.push("", "Student locale is ar — respond in Modern Standard Arabic (or Derja-tolerant), keep code in English.");
-  else if (locale === "fr") lines.push("", "Student locale is fr — respond in French.");
-  else lines.push("", "Student locale is en — respond in English.");
+  // For ar, we keep prompt in English (LLM internal) but note to respond in ar.
+  // Strong wording: a past bug showed English hints leaking to fr students.
+  if (locale === "ar") lines.push("", "Student locale is ar — respond ONLY in Modern Standard Arabic (or Derja-tolerant). Every sentence must be Arabic. Keep code identifiers and error names in English, but all explanations, questions and hints must be Arabic.");
+  else if (locale === "fr") lines.push("", "Student locale is fr — respond ONLY in French. Every sentence must be French. Keep code identifiers and error names in English, but all explanations, questions and hints must be French. Never write English prose.");
+  else lines.push("", "Student locale is en — respond ONLY in English. Every sentence must be English.");
 
   return lines.join("\n");
 }
@@ -42,8 +49,6 @@ export function buildUserMessage(ctx: TutorContext, studentMessage: string | und
   parts.push(`Constraints: ${ctx.exercise.constraints.join("; ")}`);
   parts.push(`Examples: ${ctx.exercise.examples.map((e) => `Input: ${e.input} -> Output: ${e.output}`).join(" | ")}`);
   parts.push(`Concepts: ${ctx.exercise.concepts.join(", ")}`);
-  parts.push(`Milestones: ${ctx.exercise.milestones.map((m) => m.title).join(" → ")}`);
-  if (ctx.currentMilestoneTitle) parts.push(`Current milestone: ${ctx.currentMilestoneTitle}`);
   parts.push(`Student code:\n\`\`\`python\n${ctx.code.slice(0, 4000)}\n\`\`\``);
   if (ctx.lastRunResult) {
     parts.push(`Last run: stdout=${(ctx.lastRunResult.stdout ?? "").slice(0, 500)} stderr=${(ctx.lastRunResult.stderr ?? "").slice(0, 500)} exitCode=${ctx.lastRunResult.exitCode} timedOut=${ctx.lastRunResult.timedOut}`);
@@ -79,83 +84,65 @@ export function cannedFallback(
     return "Trop de requêtes. Réessaie dans une minute.";
   }
 
-  const stmtLow = ctx.exercise.statement.toLowerCase();
-  const isVitesse = stmtLow.includes("vitesse");
-  const isAuth = (stmtLow.includes("login") || stmtLow.includes("mot de passe")) && stmtLow.includes("admin");
+  // Contenu pédagogique FR depuis les cartes BAC (my-scripts/bac-python-hints.fr.json).
+  // Les préfixes courts restent trilingues (opérationnel), le corps de l'indice est FR.
   const lvl = allowedLevel;
+  const stderr = ctx.lastRunResult?.stderr ?? "";
+  const { text: cardHint } = topCardHint(
+    { statement: ctx.exercise.statement, code: ctx.code, stderr },
+    lvl
+  );
 
-  if (ctx.lastRunResult?.stderr) {
-    const errFull = ctx.lastRunResult.stderr;
-    const firstLine = errFull.split("\n").find((l) => l.includes("SyntaxError") || l.includes("NameError") || l.includes("EOFError") || l.trim().startsWith("File")) ?? errFull.split("\n")[0];
-    // Extract line number if present: `line 4` or `File "<exec>", line 4`
-    const lineMatch = errFull.match(/line (\d+)/);
+  if (stderr) {
+    const lineMatch = stderr.match(/line (\d+)/);
     const lineInfo = lineMatch ? ` (ligne ${lineMatch[1]})` : "";
-    if (errFull.includes("SyntaxError") && errFull.includes("was never closed")) {
-      const snippet = errFull.includes("print(a ( b)") ? "print(a ( b) — il manque un opérateur (+, -, *, /) entre a et b" : errFull.slice(0, 120);
-      if (locale === "ar") return `خطأ صياغي${lineInfo}: ${snippet.slice(0, 80)}. هل نسيت عاملاً بين المتغيرين؟`;
-      if (locale === "en") return `SyntaxError${lineInfo}: ${snippet.slice(0, 80)}. Did you forget an operator between the variables?`;
-      return `Erreur de syntaxe${lineInfo} : ${snippet.slice(0, 80)}. As-tu oublié un opérateur (+, -, *, /) entre les variables ?`;
+    let prefix: string;
+    if (stderr.includes("SyntaxError") && stderr.includes("was never closed")) {
+      prefix =
+        locale === "ar"
+          ? `خطأ صياغي${lineInfo} : parenthèse jamais fermée. As-tu oublié un opérateur (+, -, *, /) entre les variables ?`
+          : locale === "en"
+            ? `SyntaxError${lineInfo}: bracket was never closed. Did you forget an operator (+, -, *, /) between the variables?`
+            : `Erreur de syntaxe${lineInfo} : parenthèse jamais fermée. As-tu oublié un opérateur (+, -, *, /) entre les variables ?`;
+    } else if (stderr.includes("SyntaxError")) {
+      const msg = stderr.match(/SyntaxError: (.+)/)?.[1]?.slice(0, 60) ?? stderr.split("\n")[0].slice(0, 80);
+      prefix =
+        locale === "ar"
+          ? `خطأ صياغي${lineInfo}: ${msg}.`
+          : locale === "en"
+            ? `SyntaxError${lineInfo}: ${msg}.`
+            : `Erreur de syntaxe${lineInfo} : ${msg}.`;
+    } else if (stderr.includes("NameError")) {
+      const name = stderr.match(/name '(\w+)'/)?.[1] ?? "";
+      prefix =
+        locale === "ar"
+          ? `NameError${lineInfo}: المتغير '${name}' غير معرّف.`
+          : locale === "en"
+            ? `NameError${lineInfo}: '${name}' is not defined.`
+            : `NameError${lineInfo} : '${name}' n'est pas défini.`;
+    } else {
+      const first = stderr.split("\n")[0].slice(0, 80);
+      prefix =
+        locale === "ar"
+          ? `أرى خطأ${lineInfo}: ${first}.`
+          : locale === "en"
+            ? `I see an error${lineInfo}: ${first}.`
+            : `Je vois une erreur${lineInfo} : ${first}.`;
     }
-    if (errFull.includes("SyntaxError")) {
-      const msg = errFull.match(/SyntaxError: (.+)/)?.[1]?.slice(0, 60) ?? firstLine.slice(0, 80);
-      if (locale === "ar") return `خطأ صياغي${lineInfo}: ${msg}. راجع الأقواس والنقطتين.`;
-      if (locale === "en") return `SyntaxError${lineInfo}: ${msg}. Check brackets and colons.`;
-      return `Erreur de syntaxe${lineInfo} : ${msg}. Vérifie les parenthèses et les deux-points.`;
-    }
-    if (errFull.includes("NameError")) {
-      const name = errFull.match(/name '(\w+)'/)?.[1] ?? "";
-      if (locale === "ar") return `NameError${lineInfo}: المتغير '${name}' غير معرّف. هل كتبته بشكل صحيح؟`;
-      if (locale === "en") return `NameError${lineInfo}: '${name}' is not defined. Did you spell it correctly?`;
-      return `NameError${lineInfo} : '${name}' n'est pas défini. L'as-tu bien orthographié ?`;
-    }
-    const err = errFull.slice(0, 200);
-    if (locale === "ar") return `أرى خطأ${lineInfo}: ${err.split("\n")[0].slice(0, 80)}. ما السطر الذي يشير إليه؟`;
-    if (locale === "en") return `I see an error${lineInfo}: ${err.split("\n")[0].slice(0, 80)}. Which line does it point to?`;
-    return `Je vois une erreur${lineInfo} : ${err.split("\n")[0].slice(0, 80)}. À quelle ligne pointe-t-elle ?`;
+    return `${prefix}\n${cardHint}`;
   }
+
   if (ctx.testReport && ctx.testReport.failed > 0) {
     const failed = ctx.testReport.results.filter((r) => !r.passed)[0];
-    if (isVitesse) {
-      if (locale === "ar") return `النتيجة غير مطابقة لـ ${failed?.testId ?? "اختبار"} (${failed?.message?.slice(0, 40) ?? ""}). هل حوّلت كم→م (×1000) ودقائق→ثواني (×60) قبل القسمة؟`;
-      if (locale === "en") return `Output mismatch for ${failed?.testId ?? "a test"}. Did you convert km→m (×1000) and min→s (×60) before dividing?`;
-      return `La sortie ne correspond pas à ${failed?.testId ?? "un test"}. As-tu converti km→m (×1000) et minutes→secondes (×60) avant de diviser ?`;
-    }
-    if (locale === "ar") return `النتيجة غير مطابقة لـ ${failed?.testId ?? "اختبار"}. ما الذي ينقص في الخرج الحالي مقارنة بالمتوقع؟`;
-    if (locale === "en") return `The output does not match ${failed?.testId ?? "a test"}. What is missing or extra in your current output?`;
-    return `La sortie ne correspond pas à ${failed?.testId ?? "un test"}. Qu'est-ce qui manque ou est en trop dans ta sortie actuelle ?`;
+    const testId = failed?.testId ?? "un test";
+    const prefix =
+      locale === "ar"
+        ? `النتيجة غير مطابقة لـ ${testId}.`
+        : locale === "en"
+          ? `The output does not match ${testId}.`
+          : `La sortie ne correspond pas à ${testId}.`;
+    return `${prefix}\n${cardHint}`;
   }
 
-  if (isAuth) {
-    const authHints: Record<HintLevel, Record<string, string>> = {
-      0: { fr: "Peux-tu reformuler : deux chaînes login/mdp → Bienvenue si admin/admin sinon incorrecte ?", ar: "أعد صياغة: سلسلتان → ترحيب إذا admin/admin وإلا خطأ؟", en: "Can you restate: two strings → Welcome if admin/admin else incorrect?" },
-      1: { fr: "Que doit-on lire en premier : login ou mot de passe ? Avec quelle fonction ?", ar: "ماذا نقرأ أولا؟ بأي دالة؟", en: "What to read first? With which function?" },
-      2: { fr: "Pense à input() pour lire chaque chaîne, sans oublier les guillemets pour \"admin\".", ar: "فكر في input() لكل سلسلة مع علامات اقتباس لـ admin.", en: "Think input() for each string, with quotes for \"admin\"." },
-      3: { fr: "Vérifie la condition : if login == \"admin\" and mdp == \"admin\": — as-tu bien mis and et les guillemets ?", ar: "تحقق من الشرط and وعلامات الاقتباس.", en: "Check: if login == \"admin\" and password == \"admin\":" },
-      4: { fr: "Micro-exemple différent : si x==\"a\" and y==\"b\": print(\"ok\") else: print(\"non\") — adapte à admin.", ar: "مثال صغير مشابه: تحقق من سلسلتين ثم اطبع.", en: "Tiny analogue: if x==\"a\" and y==\"b\": print(\"ok\") else: print(\"no\") — adapt." },
-      5: { fr: "# Squelette auth\nlogin = input(\"login : \")\nmdp = input(\"mot de passe : \")\n# TODO: tester égalité admin\n# if login == \"admin\" and mdp == \"admin\":\n#     print(\"Bienvenue\")\n# else:\n#     print(\"incorrecte\")", ar: "# هيكل المصادقة\nlogin = input()\nmdp = input()\n# TODO: التحقق", en: "# Auth skeleton\nlogin = input(\"login: \")\npassword = input(\"password: \")\n# TODO: check admin" },
-    };
-    return authHints[lvl][locale] ?? authHints[lvl].fr;
-  }
-
-  if (isVitesse) {
-    const vitesseHints: Record<HintLevel, Record<string, string>> = {
-      0: { fr: "Peux-tu reformuler : distance en km, temps en minutes → vitesse en m/s ?", ar: "أعد صياغة: مسافة بالكم، زمن بالدقائق → سرعة بالم/ث؟", en: "Can you restate: distance km, time minutes → speed m/s?" },
-      1: { fr: "Combien vaut 1 km en mètres ? Et 1 minute en secondes ?", ar: "كم يساوي 1 كم بالمتر؟ و1 دقيقة بالثواني؟", en: "How much is 1 km in meters? And 1 minute in seconds?" },
-      2: { fr: "Pense à convertir : distance_m = distance_km * 1000 et temps_s = temps_min * 60.", ar: "فكر في التحويل: المسافة بالمتر = الكم×1000 والزمن بالثواني = الدقائق×60.", en: "Think converting: distance_m = km*1000 and time_s = min*60." },
-      3: { fr: "Vérifie la formule autour de la division : vitesse = distance_m / temps_s. Que se passe-t-il si temps = 0 ?", ar: "تحقق من القسمة: السرعة = المسافة/الزمن. ماذا لو الزمن 0؟", en: "Check the division: speed = distance_m / time_s. What if time = 0?" },
-      4: { fr: "Micro-exemple différent : si distance=2 km et temps=1 min, distance_m=2000, temps_s=60 → vitesse≈33.33 m/s. Adapte l'idée.", ar: "مثال صغير: مسافة 2 كم وزمن 1 د = 2000م/60ث≈33.33.", en: "Tiny analogue: 2 km, 1 min → 2000m/60s≈33.33 m/s. Adapt the idea." },
-      5: { fr: "# Squelette vitesse\n# TODO: lire distance_km\n# TODO: lire temps_min\n# TODO: convertir en m et s\n# TODO: gérer temps == 0\n# TODO: calculer et afficher vitesse", ar: "# هيكل السرعة\n# TODO: قراءة المسافة\n# TODO: قراءة الزمن\n# TODO: التحويل\n# TODO: الحساب والعرض", en: "# Speed skeleton\n# TODO: read distance_km\n# TODO: read time_min\n# TODO: convert units\n# TODO: handle time==0\n# TODO: compute and print speed" },
-    };
-    return vitesseHints[lvl][locale] ?? vitesseHints[lvl].fr;
-  }
-
-  const byLevel: Record<HintLevel, Record<string, string>> = {
-    0: { fr: "Peux-tu reformuler l'exercice avec les entrées et sorties attendues ?", ar: "هل يمكنك إعادة صياغة التمرين مع المدخلات والمخرجات المتوقعة؟", en: "Can you restate the problem with its inputs and expected outputs?" },
-    1: { fr: "Que devrait-il se passer si la liste est vide ?", ar: "ماذا يجب أن يحدث إذا كانت القائمة فارغة؟", en: "What should happen if the list is empty?" },
-    2: { fr: "Pense à une boucle for avec un accumulateur.", ar: "فكر في حلقة for مع متغير تراكمي.", en: "Think about a for loop with an accumulator." },
-    3: { fr: "Vérifie la condition dans ta boucle, autour de la ligne où tu itères.", ar: "تحقق من الشرط داخل حلقتك.", en: "Check the condition in your loop, where you iterate." },
-    4: { fr: "Exemple analogue : pour additionner une liste, on ferait total=0; for x in [1,2]: total+=x — adapte l'idée, pas le code.", ar: "مثال صغير مشابه: لجمع قائمة نبدأ total=0 ثم حلقة — طبق الفكرة.", en: "Tiny analogue: to sum [1,2] you'd do total=0; for x in [1,2]: total+=x — apply the idea, not the code." },
-    5: { fr: "# Squelette - à compléter\ndef solve():\n    # TODO: lire l'entrée\n    # TODO: traiter les données\n    # TODO: afficher le résultat", ar: "# هيكل - اكمل\ndef solve():\n    # TODO: قراءة المدخلات\n    # TODO: معالجة البيانات\n    # TODO: عرض النتيجة", en: "# Skeleton - fill the blanks\ndef solve():\n    # TODO: read input\n    # TODO: process data\n    # TODO: display result" },
-  };
-  return byLevel[lvl][locale] ?? byLevel[lvl].fr;
+  return cardHint;
 }

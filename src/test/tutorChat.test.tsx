@@ -96,6 +96,25 @@ describe("TutorChat", () => {
     expect(screen.getByText(/Tutor offline\. You can still code/i)).toBeInTheDocument();
   });
 
+  it("chat is dialogue-only: no insert-comment button on tutor messages", async () => {
+    const fetchMock = vi.fn(async () => streamResponse("Lis n avec input", 1));
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <I18nProvider>
+        <TutorChat code="x=1" />
+      </I18nProvider>
+    );
+    // Ni le message de bienvenue ni les réponses n'offrent d'insertion :
+    // l'IDE ne reçoit que les indices guidés L1→L5.
+    expect(screen.queryAllByTestId("insert-comment").length).toBe(0);
+    const input = screen.getByTestId("tutor-input") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "aide-moi" } });
+    fireEvent.click(screen.getByTestId("tutor-send"));
+    await waitFor(() => expect(screen.getByText(/Lis n avec input/)).toBeInTheDocument());
+    expect(screen.queryAllByTestId("insert-comment").length).toBe(0);
+    vi.unstubAllGlobals();
+  });
+
   it("enforces max 1000 chars input via maxLength", () => {
     render(
       <I18nProvider>

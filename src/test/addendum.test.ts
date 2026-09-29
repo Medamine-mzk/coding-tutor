@@ -1,62 +1,10 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-nocheck — CreateResult union has lowConfidence branch; tests use runtime shape
 import { describe, it, expect, beforeEach } from "vitest";
-import { verifyStepPlan, verifyStep } from "@/lib/exercise/stepVerification";
-import type { Step } from "@/lib/exercise/stepPlan";
 import { clearExerciseService, createOrReuseExercise } from "@/lib/exercise/exerciseService";
 import { clearCache } from "@/lib/exercise/exerciseCache";
-
-function fakeStep(overrides: Partial<Step> = {}): Step {
-  return {
-    id: "step_1",
-    order: 1,
-    title: "Read the input",
-    goal: "Read the input correctly",
-    check_type: "io_test",
-    io_test: { stdin: ["2 3"], expected_stdout: "5" },
-    function_test: null,
-    ast_check: null,
-    hint_seeds: { "0": [] },
-    exerciseId: "ex_1",
-    successCriteria: "Read",
-    hintSeeds: [],
-    ...overrides,
-  };
-}
-
-describe("Step verification — addendum 1.3", () => {
-  it("rejects step whose io_test does not match reference", async () => {
-    const ref = `print("5")`;
-    const badStep = fakeStep({ io_test: { stdin: ["2 3"], expected_stdout: "999" } });
-    const res = await verifyStep(ref, badStep);
-    expect(res.ok).toBe(false);
-    expect(res.reason).toMatch(/expected/);
-  });
-
-  it("rejects step whose ast_check is not satisfied by reference", async () => {
-    const ref = `x = 1\nprint(x)`;
-    const step = fakeStep({ check_type: "ast_check", io_test: null, ast_check: { must_contain: ["For"] } });
-    const res = await verifyStep(ref, step);
-    expect(res.ok).toBe(false);
-    expect(res.reason).toMatch(/must_contain/);
-  });
-
-  it("accepts correct io_test and function_test", async () => {
-    const ref = `def add(a,b):\n    return a+b`;
-    const io = fakeStep({ io_test: null, function_test: { function_name: "add", args: [2, 3], expected: 5 }, check_type: "function_test", ast_check: null });
-    const res = await verifyStep(ref, io);
-    expect(res.ok).toBe(true);
-  });
-
-  it("verifyStepPlan fails if any step fails — never publish unverified", async () => {
-    const ref = `print("5")`;
-    const good = fakeStep({ io_test: { stdin: ["2 3"], expected_stdout: "5" } });
-    const bad = fakeStep({ id: "step_2", order: 2, io_test: { stdin: ["2 3"], expected_stdout: "999" } });
-    const res = await verifyStepPlan(ref, [good, bad]);
-    expect(res.ok).toBe(false);
-    expect(res.failedStep?.id).toBe("step_2");
-  });
-});
+import { addComments } from "@/lib/teacher/addComments";
+import { parseCommentedReference, getHintText } from "@/lib/tutor/commentHints";
 
 describe("Exercise cache — execution-verified matching (addendum 2.3)", () => {
   beforeEach(() => {
@@ -141,76 +89,55 @@ describe("Concurrency — in-flight lock (addendum 4)", () => {
   });
 });
 
-describe("Localization cache (addendum 2.4)", () => {
+describe("Localization (addendum 2.4) — canonical reuse across languages", () => {
   beforeEach(() => {
     clearExerciseService();
   });
 
-  it("duplicate in different language reuses canonical and caches translation without re-solving", async () => {
+  it("duplicate in different language reuses canonical via execution check", async () => {
     const fr = "Somme.\nEntrée: 2 3 → Sortie: 5";
     const r1 = await createOrReuseExercise(fr, { uiLocale: "fr" });
     const ar = "مجموع.\nإدخال: 2 3 → إخراج: 5";
     const r2 = await createOrReuseExercise(ar, { uiLocale: "ar" });
-    // Execution should merge (same sum logic)
+    // Execution should merge (same sum logic) — no step titles to translate anymore
     expect(r2.canonical.id).toBe(r1.canonical.id);
-    expect(r2.canonical.languages["ar"]).toBeDefined();
     expect(r2.canonical.languages["fr"]).toBeDefined();
   });
 });
 
-describe("Progressive disclosure (addendum 1.4)", () => {
+describe("Comment-based hints — no steps, no progressive disclosure", () => {
   beforeEach(() => {
     clearExerciseService();
     clearCache();
   });
 
-  it("server blanks future steps' goal and check data — only current step is fully visible", async () => {
-    const text = "Somme de deux nombres.\nEntrée: 2 3 → Sortie: 5\nCe programme doit lire deux entiers et afficher leur somme, en gérant les cas limites.";
+  it("generated exercise carries examples/tests but no steps", async () => {
+    const text = "Somme de deux nombres.\nEntrée: 2 3 → Sortie: 5";
     const r1 = await createOrReuseExercise(text, { uiLocale: "fr" });
-    // new exercise always starts at step 1
-    const ex = r1.exercise as unknown as { steps?: import("@/lib/exercise/stepPlan").Step[]; currentStepOrder?: number };
-    expect(ex.steps).toBeDefined();
-    expect(ex.steps!.length).toBeGreaterThanOrEqual(3);
-    expect(ex.currentStepOrder).toBe(1);
-    // titles are always visible
-    for (const s of ex.steps!) expect(s.title.length).toBeGreaterThan(0);
-    // current step (order 1) has goal and at least empty check fields populated (or hint_seeds)
-    const first = ex.steps!.find((s) => s.order === 1)!;
-    expect(first.goal.length).toBeGreaterThan(0);
-    // future steps must be title-only — goal blank and checks null/empty
-    const future = ex.steps!.filter((s) => s.order > 1);
-    expect(future.length).toBeGreaterThan(0);
-    for (const s of future) {
-      expect(s.goal).toBe("");
-      expect(s.io_test).toBeNull();
-      expect(s.function_test).toBeNull();
-      expect(s.ast_check).toBeNull();
-      expect(s.hint_seeds).toEqual({});
-      // successCriteria / hintSeeds also blanked
-      expect(s.successCriteria).toBe("");
-      expect(s.hintSeeds).toEqual([]);
-    }
-    // verify canonical still stores full plan server-side (not leaked to client but present in store)
-    const full = r1.canonical.step_plan;
-    expect(full.length).toBe(ex.steps!.length);
-    const fullFuture = full.filter((s) => s.order > 1);
-    // At least one future step in the full plan has a real goal/check that was blanked for the client
-    expect(fullFuture.some((s) => s.goal.length > 0 || s.io_test || s.ast_check || s.function_test)).toBe(true);
+    const ex = r1.exercise as unknown as Record<string, unknown>;
+    expect(ex["steps"]).toBeUndefined();
+    expect(ex["currentStepOrder"]).toBeUndefined();
+    expect((r1.exercise.examples?.length ?? 0)).toBeGreaterThan(0);
+    expect((r1.exercise.visibleTests?.length ?? 0)).toBeGreaterThan(0);
   });
 
-  it("advancing currentStepOrder reveals the next step's goal", async () => {
-    const text = `Disclosure advance ${Date.now()}\nEntrée: 1 2 → Sortie: 3`;
-    const r1 = await createOrReuseExercise(text, { uiLocale: "fr" });
-    const id = r1.canonical.id;
-    // Re-fetch same canonical with currentStepOrder=2 should reveal step 2
-    const { getCanonicalExercise, toExerciseView } = await import("@/lib/exercise/exerciseService");
-    const canon = getCanonicalExercise(id)!;
-    const ex2 = toExerciseView(canon, "fr", 2) as unknown as { steps: import("@/lib/exercise/stepPlan").Step[] };
-    const s1 = ex2.steps.find((s) => s.order === 1)!;
-    const s2 = ex2.steps.find((s) => s.order === 2)!;
-    const future = ex2.steps.filter((s) => s.order > 2);
-    expect(s1.goal.length).toBeGreaterThan(0);
-    expect(s2.goal.length).toBeGreaterThan(0);
-    for (const s of future) expect(s.goal).toBe("");
+  it("reference → comments → 5-level progressive pairs", () => {
+    const ref = "n = int(input())\ns = 0\nfor i in range(1, n + 1):\n    s = s + i\nprint(s)";
+    const commented = addComments(ref);
+    const pairs = parseCommentedReference(commented);
+    expect(pairs.length).toBeGreaterThanOrEqual(5);
+    // Level 1 = comment only (no code)
+    const first = pairs[0];
+    expect(getHintText(first, 1)).toContain("#");
+    expect(getHintText(first, 1)).not.toContain("int(input())");
+    // Level 5 = full line
+    expect(getHintText(first, 5)).toContain(first.codeLine);
+    // Levels are progressive (revealed content never shrinks — ▮ excluded)
+    const stripped = (s: string) => s.replace(/▮/g, "");
+    for (const p of pairs) {
+      for (let lvl = 1; lvl < 5; lvl++) {
+        expect(stripped(getHintText(p, lvl + 1)).length).toBeGreaterThanOrEqual(stripped(getHintText(p, lvl)).length);
+      }
+    }
   });
 });

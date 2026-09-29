@@ -49,7 +49,8 @@ export async function runPythonWithStdin(code: string, stdin: string[], timeoutM
       child.on("close", (code) => {
         clearTimeout(timer);
         if (timedOut) return;
-        resolve({ stdout, stderr, exitCode: code ?? 0, timedOut: false });
+        // Normalise les fins de ligne Windows (\r\n → \n) pour des comparaisons stables
+        resolve({ stdout: stdout.replace(/\r\n/g, "\n"), stderr: stderr.replace(/\r\n/g, "\n"), exitCode: code ?? 0, timedOut: false });
       });
 
       if (inputStr) child.stdin.write(inputStr);

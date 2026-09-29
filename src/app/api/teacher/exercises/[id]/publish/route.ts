@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacher } from "@/lib/teacher/auth";
 import { getTeacherExerciseById, updateTeacherExercise } from "@/lib/teacher/store";
-import { verifyStepPlan } from "@/lib/exercise/stepVerification";
+import { addComments } from "@/lib/teacher/addComments";
 import { runPythonWithStdin } from "@/lib/exercise/runPython";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -13,35 +13,48 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (ex.teacher_id !== auth.teacher.id) return NextResponse.json({ error: "Non autorisé" }, { status: 403 });
 
   let reference_verified = ex.reference_verified;
+  let commented_reference = ex.commented_reference ?? null;
   let warning: string | null = null;
 
-  // If a reference solution exists (uploaded or LLM-generated), re-run verification one more time
+  // Si une solution de référence existe : régénère les commentaires FR et
+  // vérifie qu'elle produit les sorties des exemples fournis.
   if (ex.reference_solution && ex.reference_solution.trim()) {
     try {
-      // Verify steps against reference (addendum 1.3)
-      const ver = await verifyStepPlan(ex.reference_solution, ex.steps as import("@/lib/exercise/stepPlan").Step[]);
-      if (!ver.ok) {
-        warning = `Vérification des étapes échouée à "${ver.failedStep?.title}": ${ver.reason} — publié quand même avec flag.`;
-        reference_verified = false;
-      } else {
-        // Also verify hidden tests if any: run reference against visible examples
-        // For manual without visible tests, skip
-        reference_verified = true;
-      }
+      commented_reference = addComments(ex.reference_solution);
     } catch (e) {
-      warning = `Vérification échouée: ${e instanceof Error ? e.message : String(e)}`;
+      warning = `Génération des commentaires échouée: ${e instanceof Error ? e.message : String(e)}`;
+    }
+    if (ex.examples.length > 0) {
+      for (const eg of ex.examples) {
+        const stdin = eg.input.split("\n");
+        if (stdin.length > 1 && stdin[stdin.length - 1] === "") stdin.pop();
+        try {
+          const res = await runPythonWithStdin(ex.reference_solution, stdin, 2000);
+          const actual = res.stdout.trim();
+          if (res.timedOut || res.exitCode !== 0 || actual !== eg.output.trim()) {
+            warning = (warning ? `${warning} ` : "") + `La référence ne produit pas la sortie attendue pour "${eg.input}": obtenu "${actual.slice(0, 80)}".`;
+            reference_verified = false;
+            break;
+          }
+        } catch (e) {
+          warning = (warning ? `${warning} ` : "") + `Vérification échouée: ${e instanceof Error ? e.message : String(e)}`;
+          reference_verified = false;
+          break;
+        }
+      }
+      if (!warning || reference_verified !== false) reference_verified = true;
+    } else {
+      warning = (warning ? `${warning} ` : "") + "Aucun exemple fourni — impossible de vérifier la référence.";
       reference_verified = false;
     }
   } else {
-    // No reference — publish with warning (addendum 3.1.2)
-    warning = "Aucune solution de référence attachée — l'exercice est publié avec reference_verified:false. Ajoutez une solution pour une vérification complète.";
+    warning = "Aucune solution de référence attachée — l'exercice est publié avec reference_verified:false. Ajoutez une solution pour générer les indices.";
     reference_verified = false;
   }
 
   const updated = updateTeacherExercise(id, {
     reference_verified,
-    // code is already set at creation, keep it; if missing, generateUniqueCode would have set it
-    // bump updated_at
+    commented_reference,
   });
 
   return NextResponse.json({

@@ -25,15 +25,14 @@ export type TeacherExercise = {
   io_spec: string;
   constraints: string[];
   examples: Array<{ input: string; output: string }>;
-  steps: import("../exercise/stepPlan").Step[];
   hidden_tests: import("../exercise/types").TestCase[];
   visible_tests: import("../exercise/types").TestCase[];
   visibility: "code_only" | "public_library";
   created_via: "manual" | "upload" | "llm_assisted";
   reference_verified: boolean;
   reference_solution?: string | null; // server-only, optional
+  commented_reference?: string | null; // auto-generated FR comments (server-only)
   canonical_id?: string | null; // link to CanonicalExercise if LLM-assisted
-  step_plan_version: number;
   created_at: string;
   updated_at: string;
 };

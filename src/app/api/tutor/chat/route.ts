@@ -3,6 +3,7 @@ import { buildSystemPrompt, buildUserMessage, cannedFallback } from "@/lib/tutor
 import { allowedLevelForRequest, clampHintLevel, isHintRequestOffTopic } from "@/lib/tutor/hintLadder";
 import type { ChatRequest, HintLevel, TutorContext } from "@/lib/tutor/types";
 import { checkForLeak, logBlockedLeak } from "@/lib/tutor/antiLeak";
+import { responseMatchesLocale } from "@/lib/tutor/langDetect";
 import type { TestCase } from "@/lib/exercise/types";
 import { generateHeuristicReference } from "@/lib/exercise/reference";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rateLimit";
@@ -107,7 +108,6 @@ export async function POST(req: NextRequest) {
     constraints: [],
     examples: [],
     concepts: [],
-    milestones: body.currentMilestoneTitle ? [{ title: body.currentMilestoneTitle }] : [],
   };
 
   const ctx: TutorContext = {
@@ -116,7 +116,6 @@ export async function POST(req: NextRequest) {
     lastRunResult: body.lastRunResult ?? null,
     testReport: body.testReport ?? null,
     hintHistory: (body.hintHistory ?? []).map((h) => ({ level: h.level, at: h.at })),
-    currentMilestoneTitle: body.currentMilestoneTitle,
     locale,
   };
 
@@ -140,7 +139,6 @@ export async function POST(req: NextRequest) {
       difficulty: 2 as const,
       concepts: exercise.concepts as unknown as import("@/lib/exercise/types").Concept[],
       source: "typed" as const,
-      milestones: [],
       visibleTests: [],
       hiddenTests: [],
     } as unknown as import("@/lib/exercise/types").Exercise;
@@ -299,7 +297,14 @@ export async function POST(req: NextRequest) {
   const safeText = finalText ?? cannedFallback(allowed, locale, ctx, "error");
   // Ensure safeText itself is not a leak (canned is safe by design, but double-check)
   const finalCheck = await checkForLeak(safeText, { hintLevel: allowed, studentCode: code, tests, referenceCode });
-  const textToStream = finalCheck.isLeak ? cannedFallback(allowed, locale, ctx, "error") : safeText;
+  let textToStream = finalCheck.isLeak ? cannedFallback(allowed, locale, ctx, "error") : safeText;
+  // Language safety net (general, all exercises): if the LLM answered in the
+  // wrong language (e.g. English prose to a fr student), fall back to the
+  // locale-aware canned hint instead of streaming the wrong language.
+  if (!responseMatchesLocale(textToStream, locale)) {
+    console.warn("[tutor] wrong-language response, using canned fallback");
+    textToStream = cannedFallback(allowed, locale, ctx, "error");
+  }
 
   return new Response(chunkResponse(textToStream, allowed), {
     headers: {

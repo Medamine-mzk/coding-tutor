@@ -8,7 +8,7 @@ describe("CompletionScreen", () => {
     render(
       <I18nProvider>
         <CompletionScreen
-          exercise={{ title: "Somme", concepts: ["loops"], difficulty: 2, milestones: [{ title: "Lire" }, { title: "Boucler" }] }}
+          exercise={{ title: "Somme", concepts: ["loops"], difficulty: 2 }}
           onContinue={vi.fn()}
           onRetry={vi.fn()}
         />
@@ -24,7 +24,7 @@ describe("CompletionScreen", () => {
     render(
       <I18nProvider>
         <CompletionScreen
-          exercise={{ title: "Somme", concepts: ["loops", "conditionals"], difficulty: 3, milestones: [] }}
+          exercise={{ title: "Somme", concepts: ["loops", "conditionals"], difficulty: 3 }}
           onContinue={vi.fn()}
         />
       </I18nProvider>
@@ -39,7 +39,7 @@ describe("CompletionScreen", () => {
     render(
       <I18nProvider>
         <CompletionScreen
-          exercise={{ title: "Somme", concepts: [], difficulty: 1, milestones: [] }}
+          exercise={{ title: "Somme", concepts: [], difficulty: 1 }}
           onContinue={onContinue}
           onRetry={onRetry}
         />
@@ -55,7 +55,7 @@ describe("CompletionScreen", () => {
     localStorage.setItem("locale", "ar");
     render(
       <I18nProvider>
-        <CompletionScreen exercise={{ title: "مجموع", concepts: [], difficulty: 2, milestones: [] }} />
+        <CompletionScreen exercise={{ title: "مجموع", concepts: [], difficulty: 2 }} />
       </I18nProvider>
     );
     expect(screen.getByTestId("completion-screen")).toBeInTheDocument();

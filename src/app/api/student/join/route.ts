@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTeacherExerciseByCode, createStudentIdentity, getStudentIdentityByToken } from "@/lib/teacher/store";
 import { createSession } from "@/lib/session/store";
-import { toExerciseView } from "@/lib/exercise/exerciseService";
-import { getCanonicalExercise } from "@/lib/exercise/exerciseService";
-import type { Exercise } from "@/lib/exercise/types";
+import { teacherExerciseToClientExercise } from "@/lib/teacher/toExerciseView";
 
 export async function POST(req: NextRequest) {
   let body: unknown;
@@ -54,12 +52,10 @@ export async function POST(req: NextRequest) {
 
   const si = createStudentIdentity(teacherEx.id, nameRaw.trim());
 
-  // Create a server-side Session pinned to this exercise's version
+  // Create a server-side Session
   const session = createSession({
     exerciseId: teacherEx.id,
     canonicalExerciseId: teacherEx.canonical_id ?? teacherEx.id,
-    stepPlanVersion: teacherEx.step_plan_version,
-    currentStepOrder: 1,
     currentCode: "",
     status: "in_progress",
     student_identity_id: si.id,
@@ -87,37 +83,4 @@ export async function POST(req: NextRequest) {
   return res;
 }
 
-function teacherExerciseToClientExercise(teacherEx: import("@/lib/teacher/types").TeacherExercise): Exercise {
-  // Convert TeacherExercise (which already has steps) to the client Exercise shape via a synthetic Canonical
-  // Reuse toExerciseView logic by building a minimal CanonicalExercise
-  const { toExerciseView } = require("@/lib/exercise/exerciseService") as typeof import("@/lib/exercise/exerciseService");
-  const { getTeacherExerciseById } = require("@/lib/teacher/store") as typeof import("@/lib/teacher/store");
 
-  // Build a synthetic canonical on the fly for toExerciseView
-  const canonical = {
-    id: teacherEx.canonical_id ?? `canon_${teacherEx.id}`,
-    example_signature: "teacher",
-    text_embedding: [],
-    concepts: teacherEx.concepts,
-    io_spec: teacherEx.io_spec,
-    languages: {
-      fr: {
-        title: teacherEx.title,
-        statement_display: teacherEx.statement,
-        step_titles: teacherEx.steps.map((s) => s.title),
-        step_goals: teacherEx.steps.map((s) => s.goal),
-      },
-    },
-    reference_solution_ref: teacherEx.reference_solution ? `ref_${teacherEx.id}` : "",
-    reference_solution: teacherEx.reference_solution ?? "",
-    step_plan_version: teacherEx.step_plan_version,
-    step_plan: teacherEx.steps,
-    hidden_tests: teacherEx.hidden_tests,
-    visible_tests: teacherEx.visible_tests,
-    hit_count: 0,
-    created_at: teacherEx.created_at,
-  } as import("@/lib/exercise/stepPlan").CanonicalExercise;
-
-  // Use toExerciseView to get progressive disclosure (currentStepOrder 1)
-  return toExerciseView(canonical, "fr", 1);
-}

@@ -17,10 +17,6 @@ function makeExercise(overrides: Partial<Exercise> = {}): Exercise {
     difficulty: 2,
     concepts: ["loops"],
     source: "typed",
-    milestones: [
-      { id: "ms1", exerciseId: "ex_test", order: 1, title: "Lire les entrées", successCriteria: "ok", hintSeeds: [] },
-      { id: "ms2", exerciseId: "ex_test", order: 2, title: "Calculer", successCriteria: "ok", hintSeeds: [] },
-    ],
     visibleTests: [{ id: "t1", expected: "5", kind: "stdout", hidden: false }],
     hiddenTests: [],
     ...overrides,

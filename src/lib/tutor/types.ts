@@ -56,13 +56,11 @@ export type TutorContext = {
     constraints: string[];
     examples: Array<{ input: string; output: string }>;
     concepts: string[];
-    milestones: Array<{ title: string; successCriteria?: string }>;
   };
   code: string;
   lastRunResult?: RunResultForTutor | null;
   testReport?: TestReportForTutor | null;
-  hintHistory: Array<{ level: HintLevel; milestoneId?: string; at: string }>;
-  currentMilestoneTitle?: string;
+  hintHistory: Array<{ level: HintLevel; at: string }>;
   locale: "fr" | "ar" | "en";
 };
 
@@ -74,7 +72,6 @@ export type ChatRequest = {
   lastRunResult?: RunResultForTutor | null;
   testReport?: TestReportForTutor | null;
   hintHistory?: Array<{ level: HintLevel; at: string }>;
-  currentMilestoneTitle?: string;
   locale?: "fr" | "ar" | "en";
   studentMessage?: string;
   quickAction?: QuickAction;

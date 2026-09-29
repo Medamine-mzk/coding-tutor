@@ -2,7 +2,6 @@ import { createHash, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Teacher, TeacherExercise, StudentIdentity } from "./types";
-import type { Step } from "../exercise/stepPlan";
 import type { TestCase } from "../exercise/types";
 
 // In-memory stores — same pattern as canonicalStore / embeddingIndex
@@ -150,7 +149,7 @@ export function generateUniqueCode(): string {
   return `PY-${randomBytes(3).toString("hex").toUpperCase().slice(0, 6)}`;
 }
 
-export function createTeacherExercise(data: Omit<TeacherExercise, "id" | "code" | "created_at" | "updated_at" | "step_plan_version"> & { id?: string; code?: string }): TeacherExercise {
+export function createTeacherExercise(data: Omit<TeacherExercise, "id" | "code" | "created_at" | "updated_at"> & { id?: string; code?: string }): TeacherExercise {
   const id = data.id ?? `ex_${randomBytes(6).toString("hex")}`;
   const code = data.code ?? generateUniqueCode();
   const now = new Date().toISOString();
@@ -165,7 +164,6 @@ export function createTeacherExercise(data: Omit<TeacherExercise, "id" | "code" 
     io_spec: data.io_spec ?? "",
     constraints: data.constraints ?? [],
     examples: data.examples ?? [],
-    steps: data.steps ?? [],
     hidden_tests: data.hidden_tests ?? [],
     visible_tests: data.visible_tests ?? [],
     teacher_id: data.teacher_id,
@@ -173,8 +171,8 @@ export function createTeacherExercise(data: Omit<TeacherExercise, "id" | "code" 
     created_via: data.created_via,
     reference_verified: data.reference_verified ?? false,
     reference_solution: data.reference_solution ?? null,
+    commented_reference: data.commented_reference ?? null,
     canonical_id: data.canonical_id ?? null,
-    step_plan_version: 1,
     created_at: now,
     updated_at: now,
   };

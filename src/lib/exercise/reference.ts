@@ -22,10 +22,10 @@ export function generateHeuristicReference(exercise: Exercise): string | null {
 `;
   }
 
-  // Auth login / password
+  // Auth login / password — BAC: input() sans strip, comparaisons == et and
   if ((stmt.includes("login") || stmt.includes("mot de passe")) && stmt.includes("admin")) {
-    return `login = input().strip()
-mdp = input().strip()
+    return `login = input()
+mdp = input()
 if login == "admin" and mdp == "admin":
     print("Bienvenue")
 else:
@@ -33,63 +33,40 @@ else:
 `;
   }
 
-  // Vitesse = distance / temps with unit conversion (km->m, min->s)
+  // Vitesse = distance / temps with unit conversion (km->m, min->s) — BAC: conversions float/int, pas de strip/split/f-string/is_integer
   if (stmt.includes("vitesse") && (stmt.includes("distance") || stmt.includes("kilom")) && (stmt.includes("temps") || stmt.includes("minute"))) {
-    return `distance_km = float(input().strip() or 0)
-temps_min = float(input().strip() or 0)
+    return `distance_km = float(input())
+temps_min = float(input())
 if temps_min == 0:
     print(0)
 else:
     distance_m = distance_km * 1000
     temps_s = temps_min * 60
     vitesse = distance_m / temps_s
-    if vitesse.is_integer():
-        print(int(vitesse))
-    else:
-        print(f"{vitesse:.2f}")
+    print(vitesse)
 `;
   }
 
-  // Facture avec TVA 20% — 2 articles, nom/prix/quantité
+  // Facture avec TVA 20% — 2 articles, nom/prix/quantité — BAC strict: input() simple, * et +, pas de strip/split/f-string/is_integer
   if (stmt.includes("facture") && stmt.includes("tva")) {
     return `total = 0
-for _ in range(2):
-    nom = input().strip()
-    try:
-        prix = float(input().strip())
-    except:
-        prix = 0
-    try:
-        qte = int(input().strip())
-    except:
-        qte = 0
+for i in range(0, 2):
+    nom = input()
+    prix = float(input())
+    qte = int(input())
     ht = prix * qte
     ttc = ht * 1.2
-    total += ttc
-    # Affiche le TTC par article (1 décimale si entier, sinon 2)
-    if ttc.is_integer():
-        print(f"{nom}: {int(ttc)}.0")
-    else:
-        print(f"{nom}: {ttc:.2f}")
-if total.is_integer():
-    print(f"Total: {int(total)}.0")
-else:
-    print(f"Total: {total:.2f}")
+    total = total + ttc
+    print(nom, ttc)
+print(total)
 `;
   }
 
-  // Sum of two numbers is the most common starter
+  // Sum of two numbers — BAC: deux input() séparés (Q1), pas de sys.stdin/split/map/sum
   if (stmt.includes("somme") || stmt.includes("sum") || (stmt.includes("deux") && stmt.includes("entier")) || stmt.includes("addition")) {
-    return `import sys
-def solve():
-    data = sys.stdin.read().strip().split()
-    if not data:
-        return
-    nums = list(map(int, data))
-    print(sum(nums))
-
-if __name__ == "__main__":
-    solve()
+    return `a = int(input())
+b = int(input())
+print(a + b)
 `;
   }
 
@@ -142,8 +119,21 @@ export async function generateReferenceSolutionWithMeta(exercise: Exercise): Pro
 
   const examplesStr = exercise.examples.map((e) => `Input: ${e.input} -> Output: ${e.output}`).join("\n");
   const system =
-    "You are a reference solution generator for a Python coding tutor. Given an exercise title, statement, and examples, return ONLY a correct Python solution that reads from stdin and prints to stdout (or defines the required function). Keep it short and correct. Never include explanation, only code in a ```python block.";
-  const userContent = `Title: ${exercise.title}\nStatement: ${exercise.statement}\nIO: ${exercise.ioSpec}\nConstraints: ${exercise.constraints.join("; ")}\nExamples:\n${examplesStr}\nConcepts: ${exercise.concepts.join(", ")}\n\nReturn only the Python code.`;
+    "You are a reference solution generator for a Python coding tutor (Tunisia BAC Informatique). Given an exercise title, statement, and examples, return ONLY a correct Python solution that reads from stdin and prints to stdout (or defines the required function). Keep it short and correct. Never include explanation, only code in a ```python block.\n" +
+    "STRICT BAC CONSTRAINTS (Ministere 2022/2023) — your code MUST respect:\n" +
+    "- I/O only: input() and print() — input() returns str, convert with int()/float()/bool()/str() — no strip/split/read/sys.stdin\n" +
+    "- Arrays: from numpy import array — T = array([0]*n) or array([[0]*C]*L), homogeneous static, access T[i]/T[i][j] — no list, append, join, reversed\n" +
+    "- Records: dict — no other structures\n" +
+    "- Conditionals: if/elif/else or match/case scalar — block form, no ternary\n" +
+    "- Loops: for i in range(Début, Fin+1, Pas): and while Condition: — NEVER use break\n" +
+    "- Modules: def Nom(pf): ... return resultat (single simple result) — no lambda\n" +
+    "- Operators: + - * / // % and == != > >= < <= in and not/or — no **\n" +
+    "- Allowed functions ONLY: round(x), sqrt(x) (import math), randint(vi,vf) (import random), int/float/abs/ord/chr/len/ch.find/str/isdecimal/slicing/upper/concat + — NO map/split/strip/lower/max/min/sum/sorted/join/reversed/Counter/math.factorial/math.gcd\n" +
+    "- Imports ONLY: from numpy import array, import math (for sqrt), import random (for randint), from pickle import load/dump — no other imports\n" +
+    "- Forbidden: print(T) (print array directly), return multiple values, non-scalar match, dynamic arrays, explicit typing, f-strings with format\n" +
+    "- Reading: each value on its own input() line — e.g. a=int(input()); b=int(input()) — for arrays: n=int(input()); T=array([0]*n); for i in range(0,n): T[i]=int(input()); printing arrays element by element: for i in range(0,n): print(T[i])\n" +
+    "If you violate any rule the solution will be rejected.";
+  const userContent = `Title: ${exercise.title}\nStatement: ${exercise.statement}\nIO: ${exercise.ioSpec}\nConstraints: ${exercise.constraints.join("; ")}\nExamples:\n${examplesStr}\nConcepts: ${exercise.concepts.join(", ")}\n\nReturn only the Python code that respects the BAC constraints above.`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);

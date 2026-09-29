@@ -23,8 +23,8 @@ export default function TeacherProgressPage() {
   if (!data || (data as { error?: string }).error) return <div className="mx-auto max-w-4xl px-4 py-12">Erreur: {(data as { error?: string }).error}</div>;
 
   const ex = (data as { exercise: { title: string; code: string } }).exercise;
-  const roster = (data as { roster: Array<{ display_name: string; currentStep: number; lastActive: string; sessionCount: number }> }).roster;
-  const aggregates = (data as { aggregates: { totalStudents: number; totalSessions: number; perStep: Array<{ order: number; title: string; completionRate: number; stalledCount: number }>; mostStalled: { order: number; title: string } | null } }).aggregates;
+  const roster = (data as { roster: Array<{ display_name: string; hintsRevealed: number; lastActive: string; sessionCount: number; completed: boolean }> }).roster;
+  const aggregates = (data as { aggregates: { totalStudents: number; totalSessions: number; completedCount: number; completionRate: number } }).aggregates;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
@@ -33,7 +33,7 @@ export default function TeacherProgressPage() {
       </Link>
       <h1 className="mt-4 text-2xl font-bold">Progression — {ex.title}</h1>
       <p className="text-sm text-zinc-600">
-        Code {ex.code} · {aggregates.totalStudents} élèves · {aggregates.totalSessions} sessions
+        Code {ex.code} · {aggregates.totalStudents} élèves · {aggregates.totalSessions} sessions · {Math.round(aggregates.completionRate * 100)}% terminé
       </p>
 
       <div className="mt-6">
@@ -46,7 +46,8 @@ export default function TeacherProgressPage() {
               <thead className="bg-zinc-50 text-left text-xs text-zinc-600">
                 <tr>
                   <th className="px-3 py-2">Élève</th>
-                  <th className="px-3 py-2">Étape actuelle</th>
+                  <th className="px-3 py-2">Indices révélés</th>
+                  <th className="px-3 py-2">Statut</th>
                   <th className="px-3 py-2">Dernière activité</th>
                   <th className="px-3 py-2">Sessions</th>
                 </tr>
@@ -55,7 +56,8 @@ export default function TeacherProgressPage() {
                 {roster.map((r) => (
                   <tr key={r.display_name + r.lastActive} className="border-t border-black/5 dark:border-white/10">
                     <td className="px-3 py-2 font-medium">{r.display_name}</td>
-                    <td className="px-3 py-2">Étape {r.currentStep}</td>
+                    <td className="px-3 py-2">{r.hintsRevealed}</td>
+                    <td className="px-3 py-2">{r.completed ? "✓ terminé" : "en cours"}</td>
                     <td className="px-3 py-2 text-xs text-zinc-600">{new Date(r.lastActive).toLocaleString()}</td>
                     <td className="px-3 py-2">{r.sessionCount}</td>
                   </tr>
@@ -64,26 +66,6 @@ export default function TeacherProgressPage() {
             </table>
           </div>
         )}
-      </div>
-
-      <div className="mt-8">
-        <h2 className="font-semibold">Agrégats — par étape</h2>
-        <div className="mt-2 space-y-2">
-          {aggregates.perStep.map((s) => (
-            <div key={s.order} className="rounded-xl border border-black/10 p-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">
-                  {s.order}. {s.title}
-                </span>
-                <span className="text-xs text-zinc-600">{Math.round(s.completionRate * 100)}% ont dépassé · {s.stalledCount} bloqués</span>
-              </div>
-              <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-zinc-200">
-                <div className="h-full bg-emerald-500" style={{ width: `${s.completionRate * 100}%` }} />
-              </div>
-            </div>
-          ))}
-        </div>
-        {aggregates.mostStalled ? <p className="mt-3 text-sm text-amber-700">Point de blocage : étape {aggregates.mostStalled.order} — {aggregates.mostStalled.title}</p> : null}
       </div>
     </div>
   );

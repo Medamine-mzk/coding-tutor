@@ -66,14 +66,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ isExercise: false, clarification, detectedLanguage: lang }, { status: 200, headers: rateHeaders });
   }
 
-  // Addendum pipeline: verified StepPlan + cache (behind flag; falls back to legacy path if disabled)
+  // Pipeline: parse + reference + cache (behind flag; falls back to legacy path if disabled)
+  // Hints are comment-based (commentHints.ts) — no step plan, no progressive disclosure.
   const useCache = process.env.ENABLE_EXERCISE_CACHE !== "false";
   const neverCache = (body as { neverCache?: boolean }).neverCache === true;
-  // Progressive disclosure: client may send currentStepOrder (1-indexed) when re-fetching
-  // after completing a step; initial parse always starts at 1. The server blanks future
-  // steps' goal/check server-side (exerciseService.toClientSteps) so devtools cannot
-  // reveal the whole plan — fixes the exact leak the hint-ladder was built to prevent.
-  const currentStepOrder = (body as { currentStepOrder?: number }).currentStepOrder ?? 1;
   const wantsSSE = req.headers.get("accept")?.includes("text/event-stream") || (body as { stream?: boolean }).stream === true || req.nextUrl.searchParams.get("stream") === "1";
 
   // Helper to build meta for JSON/SSE
@@ -100,9 +96,8 @@ export async function POST(req: NextRequest) {
               source: (source as "typed" | "upload" | "library") ?? "typed",
               uiLocale: detectLanguage(trimmed),
               neverCache,
-              currentStepOrder: Math.max(1, Math.min(7, currentStepOrder)),
               onProgress,
-            } as unknown as Parameters<typeof createOrReuseExercise>[1]);
+            });
             if ((result as { isExercise?: boolean }).isExercise === false) {
               const r = result as { isExercise: false; clarification: string; detectedLanguage: string; meta?: unknown };
               send("done", { isExercise: false, clarification: r.clarification, detectedLanguage: r.detectedLanguage, meta: r.meta ?? { parseMode: "heuristic" } });
@@ -133,8 +128,7 @@ export async function POST(req: NextRequest) {
         source: (source as "typed" | "upload" | "library") ?? "typed",
         uiLocale: detectLanguage(trimmed),
         neverCache,
-        currentStepOrder: Math.max(1, Math.min(7, currentStepOrder)),
-      } as unknown as Parameters<typeof createOrReuseExercise>[1]);
+      });
       // Strict 1-call can return isExercise:false (LLM says not an exercise, no heuristics fallback for that case)
       if ((result as { isExercise?: boolean }).isExercise === false) {
         const r = result as { isExercise: false; clarification: string; detectedLanguage: string; meta?: unknown };

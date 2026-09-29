@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Editor } from "./Editor";
+import { Editor, type EditorHandle } from "./Editor";
 import { Console } from "./Console";
 import { TutorChat } from "./TutorChat";
 import { TestRunner } from "./TestRunner";
@@ -10,15 +10,19 @@ import { CompletionScreen } from "./CompletionScreen";
 import { useI18n } from "@/lib/i18n";
 import { PythonRunner } from "@/lib/runners/PythonRunner";
 import type { RunResult, TestCase } from "@/lib/runners/LanguageRunner";
-import { evaluateMilestones } from "@/lib/exercise/milestoneCheck";
 import { generateSkeleton } from "@/lib/exercise/skeleton";
 import { buildExerciseFromHeuristics } from "@/lib/exercise/parser";
+import { formatStatementBody } from "@/lib/exercise/formatStatement";
+import { hintToCommentBlock } from "@/lib/tutor/insertComment";
 
-const DEFAULT_CODE = `# Exemple - affiche la somme de deux nombres
-a = int(input("a: "))
-b = int(input("b: "))
-print(a + b)
+const DEFAULT_CODE = `# Exemple - écris ton code ici
 `;
+
+// L'éditeur contient encore le code par défaut (vierge) : on peut le remplacer
+// par le squelette de l'exercice sans écraser le travail de l'élève.
+function isDefaultCode(code: string): boolean {
+  return code === DEFAULT_CODE;
+}
 
 export function WorkspaceClient() {
   const { t } = useI18n();
@@ -35,9 +39,29 @@ export function WorkspaceClient() {
   const [activeTab, setActiveTab] = useState<"exercise" | "editor" | "tutor">("editor");
   const [largePasteNotice, setLargePasteNotice] = useState<string | null>(null);
   const [isTeacherMode, setIsTeacherMode] = useState(false);
-  const [loadedExercise, setLoadedExercise] = useState<null | { id: string; title: string; statement: string; ioSpec: string; constraints: string[]; examples: Array<{ input: string; output: string }>; concepts: string[]; difficulty: number; uiLocale?: string; visibleTests?: TestCase[]; hiddenTests?: TestCase[]; milestones?: Array<{ id: string; exerciseId: string; order: number; title: string; successCriteria: string; hintSeeds: string[] }> }>(null);
+
+  const [loadedExercise, setLoadedExercise] = useState<null | { id: string; title: string; statement: string; ioSpec: string; constraints: string[]; examples: Array<{ input: string; output: string }>; concepts: string[]; difficulty: number; uiLocale?: string; visibleTests?: TestCase[]; hiddenTests?: TestCase[] }>(null);
+  // Indices guidés (comment-based, serveur) : un par paire commentaire/code
+  const [hints, setHints] = useState<Array<{ pairIndex: number; level: number; text: string }>>([]);
+  const [hintsTotal, setHintsTotal] = useState<number | null>(null);
+  const [hintsRevealed, setHintsRevealed] = useState(0);
+  const [hintsDone, setHintsDone] = useState(false);
+  const [hintsLoading, setHintsLoading] = useState(false);
+  const [hintsNote, setHintsNote] = useState<string | null>(null);
+  const [joinToken, setJoinToken] = useState<string | null>(null);
+  const hasRunRef = useRef(false);
+  const editorRef = useRef<EditorHandle | null>(null);
+  // Garde partagée avec TutorChat : un commentaire inséré n'est pas une
+  // progression élève (ne fait pas escalader le ladder).
+  const insertionGuardRef = useRef(false);
 
   const runner = useMemo(() => new PythonRunner(), []);
+
+  function handleInsertCommentBlock(block: string): boolean {
+    const ok = editorRef.current?.insertComment(block) ?? false;
+    if (ok) insertionGuardRef.current = true;
+    return ok;
+  }
 
   useEffect(() => {
     // Detect teacher mode for banner (after mount to avoid SSR mismatch)
@@ -60,7 +84,7 @@ export function WorkspaceClient() {
               setLoadedExercise(data.exercise as unknown as typeof loadedExercise);
               try {
                 const skeleton = generateSkeleton(data.exercise as unknown as import("@/lib/exercise/types").Exercise);
-                if (code === DEFAULT_CODE || code.includes('a = int(input("a: "))')) {
+                if (isDefaultCode(code)) {
                   setCode(skeleton);
                 }
               } catch {}
@@ -90,13 +114,13 @@ export function WorkspaceClient() {
             // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate and fix corrupted exercise
             setLoadedExercise(rebuilt as typeof loadedExercise);
             localStorage.setItem("currentExercise", JSON.stringify(rebuilt));
-            if (code === DEFAULT_CODE || code.includes("a = int(input")) {
+            if (isDefaultCode(code)) {
               setCode(generateSkeleton(rebuilt));
             }
             return;
           }
           setLoadedExercise(parsed);
-          if (parsed && (code === DEFAULT_CODE || code.includes('a = int(input("a: "))'))) {
+          if (parsed && isDefaultCode(code)) {
             try {
               const skeleton = generateSkeleton(parsed as unknown as import("@/lib/exercise/types").Exercise);
               if (skeleton.trim() !== code.trim()) {
@@ -145,13 +169,13 @@ export function WorkspaceClient() {
       if (result.timedOut) {
         setErrorHint("Programme interrompu : boucle infinie ou calcul trop long (timeout 5s).");
       } else if (result.stderr) {
-        if (result.stderr.includes("SyntaxError")) setErrorHint("Erreur de syntaxe : verifie les deux-points, parentheses et l&apos;indentation.");
-        else if (result.stderr.includes("NameError")) setErrorHint("NameError : une variable ou fonction est utilisee avant d&apos;etre definie.");
+        if (result.stderr.includes("SyntaxError")) setErrorHint("Erreur de syntaxe : vérifie les deux-points, les parenthèses et l'indentation.");
+        else if (result.stderr.includes("NameError")) setErrorHint("NameError : une variable ou fonction est utilisée avant d'être définie.");
         else if (result.stderr.includes("EOFError")) {
-          setErrorHint("Le programme attend une entree (input) mais aucune n&apos;a ete fournie. Ajoute une ligne dans la zone stdin.");
+          setErrorHint("Le programme attend une entrée (input) mais aucune n'a été fournie. Ajoute une ligne dans la zone stdin.");
           setAwaitingInput(true);
         } else if (result.stderr.includes("Import") && result.stderr.includes("not allowed")) {
-          setErrorHint("Import non autorise. Seules les bibliotheques math, random, statistics, etc. sont permises.");
+          setErrorHint("Import non autorisé. Seules les bibliothèques autorisées (math, random, etc.) sont permises.");
         }
       }
     } catch (e: unknown) {
@@ -159,18 +183,19 @@ export function WorkspaceClient() {
       setStatus({ stdout: "", stderr: msg, exitCode: 1, timedOut: msg.includes("timed out"), error: msg });
     } finally {
       setRunning(false);
+      hasRunRef.current = true;
     }
   }
 
   function handleStop() {
     runner.stop();
     setRunning(false);
-    setStatus((prev) => prev ? { ...prev, stderr: (prev.stderr ? prev.stderr + "\n" : "") + "Arrete par l&apos;utilisateur.", error: "stopped", timedOut: true } : { stdout: "", stderr: "Arrete par l&apos;utilisateur.", exitCode: 124, timedOut: true, error: "stopped" });
+    setStatus((prev) => prev ? { ...prev, stderr: (prev.stderr ? prev.stderr + "\n" : "") + "Arrêté par l'utilisateur.", error: "stopped", timedOut: true } : { stdout: "", stderr: "Arrêté par l'utilisateur.", exitCode: 124, timedOut: true, error: "stopped" });
   }
 
   function handleLargePaste(text: string) {
     const lines = text.split("\n").length;
-    setLargePasteNotice(`Collage volumineux detecte (${lines} lignes, ${text.length} caracteres). Peux-tu m&apos;expliquer ce code ? - Walk me through this part.`);
+    setLargePasteNotice(`Collage volumineux détecté (${lines} lignes, ${text.length} caractères). Peux-tu m'expliquer ce code ?`);
     setTimeout(() => setLargePasteNotice(null), 6000);
   }
 
@@ -188,47 +213,92 @@ export function WorkspaceClient() {
 
   const [testReport, setTestReport] = useState<null | Awaited<ReturnType<PythonRunner["runTests"]>>>(null);
 
-  const milestoneStatuses = useMemo(() => {
-    if (!loadedExercise?.milestones?.length) return null;
-    return evaluateMilestones(
-      loadedExercise.milestones as unknown as import("@/lib/exercise/types").Milestone[],
-      code,
-      testReport as unknown as import("@/lib/runners/LanguageRunner").TestReport | null
-    );
-  }, [loadedExercise, code, testReport]);
+  // join_token (classe) : nécessaire pour les indices guidés serveur
+  useEffect(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      setJoinToken(
+        urlParams.get("join_token") ?? urlParams.get("joinToken") ?? (() => { try { return localStorage.getItem("student_join_token"); } catch { return null; } })()
+      );
+    } catch {
+      setJoinToken(null);
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- lecture initiale une fois
+  }, []);
+
+  // Énoncé nettoyé (sans marqueurs markdown) pour les blocs riches
+  const stmtBody = useMemo(
+    () => (loadedExercise ? formatStatementBody(loadedExercise.statement) : ""),
+    [loadedExercise]
+  );
+  const panelExamples = loadedExercise?.examples ?? [];
+  const panelConstraints = loadedExercise?.constraints ?? [];
 
   const isCompleted = !!(testReport && testReport.total > 0 && testReport.passed === testReport.total);
 
-  // Teacher dashboard: report current step to server when milestones change
-  // Reads student_join_token + currentSessionId from localStorage (set by /student/join)
+  // Teacher dashboard: report code snapshot + completion (progression = indices révélés côté serveur)
   useEffect(() => {
-    if (!milestoneStatuses || !loadedExercise) return;
-    const sessionId = localStorage.getItem("currentSessionId");
+    if (!loadedExercise) return;
+    const sessionId = (() => { try { return localStorage.getItem("currentSessionId"); } catch { return null; } })();
     if (!sessionId) return; // practice mode (no teacher) — nothing to report
-    const completed = milestoneStatuses.filter((s) => s.completed).length;
-    // currentStepOrder is 1-indexed, next step to do
-    const nextOrder = Math.min(milestoneStatuses.length, completed + 1);
-    // Don't spam: only report when step advances or completion
-    const lastReported = (window as unknown as { __lastReportedStep?: number }).__lastReportedStep;
-    if (lastReported === nextOrder && !isCompleted) return;
-    (window as unknown as { __lastReportedStep?: number }).__lastReportedStep = nextOrder;
     fetch(`/api/student/session/${encodeURIComponent(sessionId)}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        currentStepOrder: nextOrder,
         currentCode: code.slice(0, 2000), // store snippet for dashboard, not full code
         status: isCompleted ? "completed" : "in_progress",
         ...(isCompleted ? { finishedAt: new Date().toISOString() } : {}),
       }),
     }).catch(() => {});
-  }, [milestoneStatuses, isCompleted, code, loadedExercise]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- rapport ponctuel
+  }, [isCompleted, loadedExercise]);
 
   async function handleRunTests() {
     setRunning(true);
     const report = await runner.runTests(code, demoTests);
     setTestReport(report);
     setRunning(false);
+    hasRunRef.current = true;
+  }
+
+  // Indice guidé suivant : serveur révèle la paire commentaire/code (niveaux 1-5),
+  // puis le texte est inséré en commentaire à la place du curseur.
+  async function handleRequestHint() {
+    if (hintsLoading || hintsDone || !joinToken) return;
+    setHintsLoading(true);
+    setHintsNote(null);
+    try {
+      const res = await fetch("/api/student/hints", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ join_token: joinToken, hasRun: hasRunRef.current }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Erreur indices");
+      hasRunRef.current = false;
+      setHintsTotal(data.totalPairs ?? null);
+      setHintsRevealed(data.revealedCount ?? 0);
+      if (data.done) {
+        setHintsDone(true);
+        return;
+      }
+      const item = { pairIndex: data.pairIndex as number, level: data.level as number, text: data.text as string };
+      setHints((prev) => {
+        const i = prev.findIndex((h) => h.pairIndex === item.pairIndex);
+        if (i >= 0) {
+          const next = [...prev];
+          next[i] = item;
+          return next;
+        }
+        return [...prev, item];
+      });
+      if (data.capped) setHintsNote(data.note ?? "Exécute ton code (Run) pour débloquer les niveaux 4-5.");
+      handleInsertCommentBlock(hintToCommentBlock(item.text, `💡 Indice ${item.pairIndex + 1} (niveau ${item.level}) :`));
+    } catch (e) {
+      setHintsNote(e instanceof Error ? e.message : String(e));
+    } finally {
+      setHintsLoading(false);
+    }
   }
 
   return (
@@ -254,47 +324,79 @@ export function WorkspaceClient() {
                 Mode classe — progression partagée avec l'enseignant
               </p>
             ) : null}
-            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{loadedExercise ? loadedExercise.statement.slice(0, 160) : "Exemple : lire deux entiers et afficher leur somme."}</p>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{loadedExercise ? stmtBody.slice(0, 160) : "Exemple : lire deux entiers et afficher leur somme."}</p>
             <div className="mt-3 rounded-xl bg-zinc-50 p-3 text-sm dark:bg-zinc-800">
-              <p className="font-medium">Enonce</p>
-              <p className="mt-1 leading-6">{loadedExercise?.statement ?? "Lire deux entiers sur deux lignes et afficher leur somme sur une ligne."}</p>
-              <p className="mt-2 font-medium">Exemple</p>
-              <pre className="mt-1 rounded bg-white p-2 font-mono text-xs dark:bg-zinc-900">
-                {loadedExercise?.examples[0] ? `Entree: ${loadedExercise.examples[0].input} -> Sortie: ${loadedExercise.examples[0].output}` : "Entree: 2 3 -> Sortie: 5"}
-              </pre>
-              <p className="mt-2 text-xs text-zinc-600">Contraintes : {loadedExercise?.constraints[0] ?? "-1000 ≤ a,b ≤ 1000"}</p>
-              {loadedExercise?.concepts?.length ? <p className="mt-1 text-xs text-zinc-600">Concepts: {loadedExercise.concepts.join(", ")}</p> : null}
-              <p className="mt-1 text-xs text-zinc-600">{loadedExercise?.ioSpec ?? ""}</p>
+              <p className="font-medium">Énoncé</p>
+              <p className="mt-1 leading-6 whitespace-pre-line">{loadedExercise ? stmtBody : "Lire deux entiers sur deux lignes et afficher leur somme sur une ligne."}</p>
+              <p className="mt-3 font-medium">Exemple{panelExamples.length > 1 ? "s" : ""}</p>
+              {panelExamples.length > 0 ? (
+                <div className="mt-1 space-y-1.5">
+                  {panelExamples.map((ex, i) => (
+                    <pre key={i} className="rounded bg-white p-2 font-mono text-xs whitespace-pre-wrap dark:bg-zinc-900">
+                      Entrée : {ex.input} {"->"} Sortie : {ex.output}
+                    </pre>
+                  ))}
+                </div>
+              ) : (
+                <pre className="mt-1 rounded bg-white p-2 font-mono text-xs dark:bg-zinc-900">
+                  Entrée : 2 3 {"->"} Sortie : 5
+                </pre>
+              )}
+              <p className="mt-3 font-medium">Contraintes</p>
+              {panelConstraints.length > 0 ? (
+                <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-zinc-600 dark:text-zinc-400">
+                  {panelConstraints.map((c, i) => (
+                    <li key={i}>{c}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">-1000 ≤ a,b ≤ 1000</p>
+              )}
+              {loadedExercise?.concepts?.length ? <p className="mt-2 text-xs text-zinc-600">Concepts : {loadedExercise.concepts.join(", ")}</p> : null}
+              {loadedExercise?.ioSpec ? <p className="mt-1 text-xs text-zinc-600">{loadedExercise.ioSpec}</p> : null}
             </div>
           </div>
           <div className="rounded-2xl border border-black/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
-            <h3 className="text-sm font-semibold">{t("workspace.steps") ?? "Etapes"}</h3>
-            {milestoneStatuses ? (
-              <ul className="mt-3 space-y-2 text-sm" data-testid="milestone-list">
-                {milestoneStatuses.map(({ milestone, completed }) => (
-                  <li key={milestone.id} data-testid={`milestone-${milestone.id}`} className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${completed ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950" : "border-black/5 dark:border-white/10"}`}>
-                    <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs ${completed ? "bg-emerald-600 text-white" : "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"}`}>{completed ? "✓" : milestone.order}</span>
-                    <span className={`${completed ? "text-emerald-800 dark:text-emerald-200" : "text-zinc-700 dark:text-zinc-300"}`}>{milestone.title}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <ul className="mt-3 space-y-2 text-sm">
-                {["Lire les entrees", "Convertir en entiers", "Calculer la somme", "Afficher le resultat"].map((title, i) => (
-                  <li key={title} className="flex items-center gap-2 rounded-lg border border-black/5 px-3 py-2 dark:border-white/10">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-900 text-xs text-white dark:bg-white dark:text-zinc-900">{i + 1}</span>
-                    <span className="text-zinc-700 dark:text-zinc-300">{title}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {milestoneStatuses ? (
-              <p className="mt-2 text-xs text-zinc-600">
-                {milestoneStatuses.filter((s) => s.completed).length}/{milestoneStatuses.length} étapes validées · Suivant : {milestoneStatuses.find((s) => !s.completed)?.milestone.title ?? "toutes validées !"}
+            <h3 className="text-sm font-semibold">💡 Indices guidés</h3>
+            {!joinToken ? (
+              <p className="mt-2 text-xs leading-5 text-zinc-600 dark:text-zinc-400">
+                Les indices guidés pas à pas sont disponibles en mode classe (rejoins avec un code PY-XXXX). En mode pratique, utilise le tuteur ci-contre.
               </p>
-            ) : loadedExercise?.milestones?.length ? (
-              <p className="mt-2 text-xs text-zinc-600">{loadedExercise.milestones.length} étapes générées (3-7) — titres seulement, critères internes</p>
-            ) : null}
+            ) : (
+              <>
+                <button
+                  onClick={handleRequestHint}
+                  disabled={hintsLoading || hintsDone}
+                  data-testid="request-hint"
+                  aria-label="Révéler l'indice suivant et l'insérer en commentaire dans l'éditeur"
+                  className="mt-2 w-full rounded-full bg-amber-400 px-3 py-2 text-xs font-semibold text-zinc-900 hover:bg-amber-300 disabled:opacity-50 dark:bg-amber-500 dark:text-zinc-950 dark:hover:bg-amber-400"
+                >
+                  {hintsLoading ? "Chargement…" : hintsDone ? "Tous les indices révélés ✓" : "💡 Indice suivant"}
+                </button>
+                {hintsTotal !== null ? (
+                  <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400" data-testid="hint-progress">
+                    {hintsRevealed}/{hintsTotal} indices révélés
+                  </p>
+                ) : null}
+                {hintsNote ? (
+                  <p className="mt-2 rounded-xl bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200" role="status">
+                    {hintsNote}
+                  </p>
+                ) : null}
+                {hints.length > 0 ? (
+                  <ul className="mt-3 space-y-2 text-sm" data-testid="hint-list">
+                    {hints.map((h) => (
+                      <li key={h.pairIndex} data-testid={`hint-${h.pairIndex}`} className="rounded-lg border border-black/5 px-3 py-2 dark:border-white/10">
+                        <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                          Indice {h.pairIndex + 1} · niveau {h.level}/5
+                        </p>
+                        <pre className="mt-1 overflow-auto whitespace-pre-wrap font-mono text-xs text-zinc-600 dark:text-zinc-400">{h.text}</pre>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </>
+            )}
           </div>
         </div>
 
@@ -326,7 +428,7 @@ export function WorkspaceClient() {
           ) : null}
 
           <div className="min-h-[320px] flex-1">
-            <Editor value={code} onChange={setCode} onLargePaste={handleLargePaste} theme={theme} fontSize={fontSize} placeholder={t("landing.pastePlaceholder")} />
+            <Editor ref={editorRef} value={code} onChange={setCode} onLargePaste={handleLargePaste} theme={theme} fontSize={fontSize} placeholder={t("landing.pastePlaceholder")} />
           </div>
 
           <div className="grid gap-3 lg:grid-cols-[220px_1fr]">
@@ -341,7 +443,7 @@ export function WorkspaceClient() {
                 className="mt-2 w-full rounded-lg border border-black/10 bg-zinc-50 p-2 font-mono text-sm dark:border-white/10 dark:bg-zinc-800"
                 data-testid="stdin-input"
               />
-              <p className="mt-1 text-xs text-zinc-600">Exemple : 2 lignes pour deux appels a input()</p>
+              <p className="mt-1 text-xs text-zinc-600">Exemple : 2 lignes pour deux appels à input()</p>
             </div>
             <Console
               stdout={status?.stdout ?? ""}
@@ -363,7 +465,7 @@ export function WorkspaceClient() {
           ) : null}
           {status && !status.timedOut && !status.stderr && status.stdout ? (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
-              Sortie : <span className="font-mono">{status.stdout.trimEnd().split("\n").pop()}</span> - pret pour les tests
+              Sortie : <span className="font-mono">{status.stdout.trimEnd().split("\n").pop()}</span> — prêt pour les tests
             </div>
           ) : null}
 
@@ -373,7 +475,6 @@ export function WorkspaceClient() {
                 title: loadedExercise.title,
                 concepts: loadedExercise.concepts as unknown as import("@/lib/exercise/types").Concept[],
                 difficulty: loadedExercise.difficulty as 1 | 2 | 3 | 4 | 5,
-                milestones: (loadedExercise.milestones ?? []) as unknown as import("@/lib/exercise/types").Milestone[],
               }}
               onRetry={() => setTestReport(null)}
               onContinue={() => {
@@ -399,15 +500,14 @@ export function WorkspaceClient() {
                     constraints: loadedExercise.constraints,
                     examples: loadedExercise.examples,
                     concepts: loadedExercise.concepts,
-                    milestones: (loadedExercise.milestones ?? []).map((m: { title: string }) => ({ title: m.title })),
                   }
                 : undefined
             }
             code={code}
             lastRunResult={status}
             testReport={testReport as unknown as { passed: number; failed: number; total: number; results: Array<{ testId: string; passed: boolean; message?: string }> } | null}
-            currentMilestoneTitle={loadedExercise?.milestones?.[0]?.title}
             tests={demoTests as unknown as Array<{ id: string; input?: string; stdin?: string[]; expected: string; kind: "stdout" | "call"; fnCall?: string; hidden: boolean; category?: string }>}
+            insertionGuard={insertionGuardRef}
           />
         </div>
       </div>

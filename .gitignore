@@ -47,3 +47,6 @@ next-env.d.ts
 
 # pwa / cache
 .next/cache/
+
+# local dev persistence (teacher store JSON) — ephemeral on serverless
+.tmp/

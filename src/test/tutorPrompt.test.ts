@@ -12,7 +12,6 @@ function fakeCtx(overrides: Partial<TutorContext> = {}): TutorContext {
       constraints: ["-1000 ≤ n ≤ 1000"],
       examples: [{ input: "2 3", output: "5" }],
       concepts: ["loops"],
-      milestones: [{ title: "Lire les entrées" }],
     },
     code: 'print("hello")',
     lastRunResult: null,
@@ -76,11 +75,14 @@ describe("cannedFallback", () => {
     expect(fr).not.toContain("corrige");
   });
 
-  it("respects hint level for generic fallback", () => {
+  it("respects hint level for generic fallback (cartes BAC FR)", () => {
     const ctx = fakeCtx({});
-    expect(cannedFallback(0, "fr", ctx)).toMatch(/reformuler/i);
-    expect(cannedFallback(4, "fr", ctx)).toMatch(/Exemple analogue/i);
-    expect(cannedFallback(5, "fr", ctx)).toContain("Squelette");
+    // Niveau 0-1 : question socratique de la carte io-print
+    expect(cannedFallback(0, "fr", ctx)).toMatch(/Quel résultat exact/i);
+    // Niveau 4 : mini-exemple indépendant
+    expect(cannedFallback(4, "fr", ctx)).toMatch(/Mini-exemple/i);
+    // Niveau 5 : documentation syntaxe (piste, jamais la solution)
+    expect(cannedFallback(5, "fr", ctx)).toContain("print(");
     expect(cannedFallback(5, "fr", ctx)).not.toContain("print(sum");
   });
 

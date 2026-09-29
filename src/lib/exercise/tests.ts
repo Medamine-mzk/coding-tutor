@@ -137,8 +137,8 @@ export function generateHiddenTests(exercise: Exercise): TestCase[] {
       hidden: true,
       category: "boundary with max",
     });
-    // Single element? for list exercises
-    if (exercise.concepts.includes("lists")) {
+    // Single element? for array exercises
+    if (exercise.concepts.includes("lists") || exercise.concepts.includes("arrays")) {
       hidden.push({
         id: `t_hid_${nanoid()}`,
         input: "1\n5",

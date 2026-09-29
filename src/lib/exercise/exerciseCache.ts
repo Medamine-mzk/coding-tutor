@@ -98,13 +98,12 @@ function ensureSeeded() {
       text_embedding: (embeddingIndex as unknown as { textToFakeEmbedding: (s: string) => number[] })["textToFakeEmbedding"](ex.statement),
       concepts: ex.concepts,
       io_spec: ex.ioSpec,
+      constraints: ex.constraints,
       languages: {
-        [ex.uiLocale]: { title: ex.title, statement_display: ex.statement, step_titles: ex.milestones.map((m) => m.title), step_goals: ex.milestones.map((m) => m.title) },
+        [ex.uiLocale]: { title: ex.title, statement_display: ex.statement },
       },
       reference_solution_ref: `ref_${ex.id}`,
       reference_solution: `print("ref for ${ex.id}")`,
-      step_plan_version: 1,
-      step_plan: [],
       hidden_tests: ex.hiddenTests,
       visible_tests: ex.visibleTests,
       hit_count: 0,
@@ -201,8 +200,6 @@ export function toCanonicalExercise(
   const localized: LocalizedCopy = {
     title: exercise.title,
     statement_display: exercise.statement,
-    step_titles: exercise.milestones.map((m) => m.title),
-    step_goals: exercise.milestones.map((m) => m.title),
   };
   return {
     id: `canon_${exercise.id}`,
@@ -210,11 +207,10 @@ export function toCanonicalExercise(
     text_embedding: embedding,
     concepts: exercise.concepts,
     io_spec: exercise.ioSpec,
+    constraints: exercise.constraints,
     languages: { [exercise.uiLocale]: localized },
     reference_solution_ref: `ref_${exercise.id}`,
     reference_solution: referenceSolution,
-    step_plan_version: 1,
-    step_plan: [], // filled after Stage B
     hidden_tests: exercise.hiddenTests,
     visible_tests: exercise.visibleTests,
     neverCache: opts.neverCache,

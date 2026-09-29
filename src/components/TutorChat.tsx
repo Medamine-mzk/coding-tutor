@@ -5,12 +5,16 @@ import { useI18n } from "@/lib/i18n";
 import type { HintLevel, TutorMessage } from "@/lib/tutor/types";
 
 type Props = {
-  exercise?: { id: string; title: string; statement: string; ioSpec: string; constraints: string[]; examples: Array<{ input: string; output: string }>; concepts: string[]; milestones: Array<{ title: string }> };
+  exercise?: { id: string; title: string; statement: string; ioSpec: string; constraints: string[]; examples: Array<{ input: string; output: string }>; concepts: string[] };
   code: string;
   lastRunResult?: { stdout?: string; stderr?: string; exitCode?: number; timedOut?: boolean } | null;
   testReport?: { passed: number; failed: number; total: number; results: Array<{ testId: string; passed: boolean; message?: string }> } | null;
-  currentMilestoneTitle?: string;
   tests?: Array<{ id: string; input?: string; stdin?: string[]; expected: string; kind: "stdout" | "call"; fnCall?: string; hidden: boolean; category?: string }>;
+  /**
+   * Garde partagée : un indice guidé inséré dans l'éditeur ne doit pas compter
+   * comme progression du ladder (ni comme "code modifié").
+   */
+  insertionGuard?: { current: boolean };
 };
 
 const QUICK_ACTIONS = [
@@ -20,7 +24,7 @@ const QUICK_ACTIONS = [
   { key: "hint" as const, fr: "Donne un indice", ar: "أعطني تلميحا", en: "Give me a hint" },
 ];
 
-export function TutorChat({ exercise, code, lastRunResult, testReport, currentMilestoneTitle, tests }: Props) {
+export function TutorChat({ exercise, code, lastRunResult, testReport, tests, insertionGuard }: Props) {
   const { locale, t } = useI18n();
   const [messages, setMessages] = useState<TutorMessage[]>(() => [
     {
@@ -47,7 +51,15 @@ export function TutorChat({ exercise, code, lastRunResult, testReport, currentMi
   const lastCodeAtHintRef = useRef<string>("");
   const lastRunAtHintRef = useRef<string>("");
 
-  useEffect(() => { codeRef.current = code; }, [code]);
+  useEffect(() => {
+    codeRef.current = code;
+    // Un indice guidé inséré dans l'éditeur n'est pas une progression : il ne
+    // doit pas faire escalader le ladder (ni compter comme "code modifié").
+    if (insertionGuard?.current) {
+      insertionGuard.current = false;
+      lastCodeAtHintRef.current = code;
+    }
+  }, [code, insertionGuard]);
   useEffect(() => { lastRunRef.current = lastRunResult; }, [lastRunResult]);
 
   useEffect(() => {
@@ -85,7 +97,6 @@ export function TutorChat({ exercise, code, lastRunResult, testReport, currentMi
       code: codeRef.current,
       lastRunResult: lastRunRef.current,
       testReport,
-      currentMilestoneTitle,
       hintHistory: hintHistoryRef.current,
       studentMessage: studentText,
       quickAction: opts.quickAction,

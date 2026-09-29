@@ -48,7 +48,6 @@ describe("a11y — landmarks and labels", () => {
       difficulty: 1,
       concepts: [],
       source: "typed",
-      milestones: [{ id: "m1", exerciseId: "ex_a11y", order: 1, title: "Lire", successCriteria: "", hintSeeds: [] }],
       visibleTests: [],
       hiddenTests: [],
     };

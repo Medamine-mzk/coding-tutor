@@ -16,9 +16,30 @@ function getIP(req: NextRequest): string {
   return req.headers.get("x-real-ip") ?? "unknown";
 }
 
-// POST /api/teacher/exercises/generate — LLM-assisted draft (addendum §3.1.3 + §4)
-// Reuses Stage A→B pipeline as-is, but returns a draft for teacher review, not auto-publish.
+// POST /api/teacher/exercises/generate — LLM-assisted draft.
+// Runs parse + reference pipeline, returns a draft for teacher review (not auto-publish).
 // Also runs the cache matcher as suggest-only (never auto-merge across teachers).
+// The draft includes commentedReference (FR comments for the 5-level hint engine).
+
+async function solutionFor(canonicalId?: string): Promise<{ referenceSolution: string | null; commentedReference: string | null }> {
+  try {
+    if (!canonicalId) return { referenceSolution: null, commentedReference: null };
+    const { getCanonicalExercise } = await import("@/lib/exercise/exerciseService");
+    const { addComments } = await import("@/lib/teacher/addComments");
+    const canon = getCanonicalExercise(canonicalId);
+    const ref = canon?.reference_solution?.trim() ? canon.reference_solution : null;
+    if (!ref) return { referenceSolution: null, commentedReference: null };
+    let commented: string | null = null;
+    try {
+      commented = addComments(ref);
+    } catch {
+      commented = null;
+    }
+    return { referenceSolution: ref, commentedReference: commented };
+  } catch {
+    return { referenceSolution: null, commentedReference: null };
+  }
+}
 export async function POST(req: NextRequest) {
   const auth = requireTeacher(req);
   if ("error" in auth) return auth.error;
@@ -108,7 +129,6 @@ export async function POST(req: NextRequest) {
           let result: Awaited<ReturnType<typeof createOrReuseExercise>> = await createOrReuseExercise(trimmed, {
             source: (source as "typed" | "upload" | "library") ?? "typed",
             uiLocale: detectLanguage(trimmed),
-            currentStepOrder: 1,
             onProgress: progressCb as never,
           }) as Awaited<ReturnType<typeof createOrReuseExercise>>;
           // Bypass stale heuristic cache for teacher draft when LLM is available and result is generic/empty
@@ -123,7 +143,6 @@ export async function POST(req: NextRequest) {
             result = (await createOrReuseExercise(trimmed, {
               source: (source as "typed" | "upload" | "library") ?? "typed",
               uiLocale: detectLanguage(trimmed),
-              currentStepOrder: 1,
               neverCache: true,
               onProgress: progressCb as never,
             } as never)) as typeof result;
@@ -197,6 +216,7 @@ export async function POST(req: NextRequest) {
             warnings: warnings.length ? warnings : undefined,
             isGeneric,
             genericWarning,
+            ...(await solutionFor(r.canonical?.id)),
           });
         } catch (e) {
           send("error", { error: e instanceof Error ? e.message : String(e) });
@@ -215,7 +235,6 @@ export async function POST(req: NextRequest) {
     let result = await createOrReuseExercise(trimmed, {
       source: (source as "typed" | "upload" | "library") ?? "typed",
       uiLocale: detectLanguage(trimmed),
-      currentStepOrder: 1,
     });
     // If cached generic/empty and LLM is available, force a fresh LLM generation to honor the new prompt (avoid serving stale heuristic)
     const cachedEx = (result as { exercise?: import("@/lib/exercise/types").Exercise; matchMethod?: string }).exercise;
@@ -229,7 +248,6 @@ export async function POST(req: NextRequest) {
       result = await createOrReuseExercise(trimmed, {
         source: (source as "typed" | "upload" | "library") ?? "typed",
         uiLocale: detectLanguage(trimmed),
-        currentStepOrder: 1,
         neverCache: true,
       } as never);
     }
@@ -292,9 +310,6 @@ export async function POST(req: NextRequest) {
         };
       }
     }
-    if (draftExercise.steps && draftExercise.steps.some((s) => s.title === "Gérer le cas limite" && draftExercise.examples[0]?.input?.split(/\n/).length === 6)) {
-      warnings.push("Étapes génériques : 'Gérer le cas limite' peu pertinent pour n=2 fixe — envisage 'Calcul TVA (20%)'.");
-    }
     return NextResponse.json(
       {
         isExercise: true,
@@ -306,6 +321,7 @@ export async function POST(req: NextRequest) {
         warnings: warnings.length ? warnings : undefined,
         isGeneric,
         genericWarning,
+        ...(await solutionFor(r.canonical?.id)),
       },
       { headers }
     );

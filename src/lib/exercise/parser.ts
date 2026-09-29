@@ -1,5 +1,4 @@
 import type { Concept, Exercise, ExerciseExample, Locale } from "./types";
-import { generateMilestones } from "./milestones";
 import { visibleTestsFromExamples, generateHiddenTests } from "./tests";
 
 function nanoid(): string {
@@ -274,7 +273,7 @@ export function extractExamples(text: string): ExerciseExample[] {
     } else if (isVitesseExercise(text)) {
       examples.push({ input: "1\n1", output: "16.67" }, { input: "10\n5", output: "33.33" });
     } else if (/somme|sum|addition|a\s*\+\s*b/i.test(text)) {
-      examples.push({ input: "2 3", output: "5" }, { input: "0 0", output: "0" });
+      examples.push({ input: "2\n3", output: "5" }, { input: "0\n0", output: "0" });
     } else if (/facture|tva/i.test(text)) {
       examples.push({ input: "Stylo\n10\n2\nCahier\n5\n3", output: "Stylo: 24.0\nCahier: 18.0\nTotal: 42.0" });
     } else {
@@ -292,7 +291,7 @@ export function extractConcepts(text: string): Concept[] {
   const concepts: Concept[] = [];
   if (/(boucle|loop|for\s|while|it[eé]rer|iteration)/i.test(low)) concepts.push("loops");
   if (/(si\s|if\s|condition|else|sinon)/i.test(low)) concepts.push("conditionals");
-  if (/(liste|list|tableau|array)/i.test(low)) concepts.push("lists");
+  if (/(liste|list|tableau|array)/i.test(low)) concepts.push("arrays");
   if (/(fonction|function|def\s|return|retourner)/i.test(low)) concepts.push("functions");
   if (/(récursion|recursion|récursif)/i.test(low)) concepts.push("recursion");
   if (/(dictionnaire|dictionary|dict|map)/i.test(low)) concepts.push("dictionaries");
@@ -347,12 +346,10 @@ export function buildExerciseFromHeuristics(
     difficulty,
     concepts,
     source,
-    milestones: [],
     visibleTests: [],
     hiddenTests: [],
   };
 
-  const milestones = generateMilestones(shell);
   const visibleTests = visibleTestsFromExamples(shell);
   const hiddenTests = generateHiddenTests(shell);
 
@@ -368,7 +365,6 @@ export function buildExerciseFromHeuristics(
     difficulty,
     concepts,
     source,
-    milestones,
     visibleTests,
     hiddenTests,
     hiddenTestsRef: hiddenTests.length ? `ref_${id}` : undefined,

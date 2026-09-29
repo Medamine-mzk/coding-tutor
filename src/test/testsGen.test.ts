@@ -15,7 +15,6 @@ function exWith(concepts: Exercise["concepts"], examples: Exercise["examples"] =
     difficulty: 2,
     concepts,
     source: "typed",
-    milestones: [],
     visibleTests: [],
     hiddenTests: [],
   };

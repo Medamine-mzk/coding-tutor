@@ -107,7 +107,7 @@ export function LibraryClient() {
             </div>
             <div className="mt-3 rounded-xl bg-zinc-50 p-2 text-xs dark:bg-zinc-800">
               <p className="font-medium">Ex: {ex.examples[0]?.input ?? "—"} → {ex.examples[0]?.output ?? "—"}</p>
-              <p className="mt-1 text-zinc-600">{ex.milestones.length} étapes · {ex.visibleTests.length} tests visibles + {ex.hiddenTests.length} cachés</p>
+              <p className="mt-1 text-zinc-600">{ex.visibleTests.length} tests visibles + {ex.hiddenTests.length} cachés</p>
             </div>
             <button onClick={() => handlePick(ex)} className="mt-3 inline-flex items-center justify-center rounded-full bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700" data-testid={`pick-${ex.id}`}>
               {locale === "ar" ? "ابدأ" : locale === "en" ? "Start" : "Commencer"} →

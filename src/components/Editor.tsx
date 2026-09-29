@@ -1,13 +1,19 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useImperativeHandle, useRef, type Ref } from "react";
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection } from "@codemirror/view";
+import { planCommentInsert } from "@/lib/tutor/insertComment";
 import { EditorState, Compartment } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { bracketMatching } from "@codemirror/language";
 import { python } from "@codemirror/lang-python";
 import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
 import { oneDark } from "@codemirror/theme-one-dark";
+
+export type EditorHandle = {
+  /** Insère un bloc de commentaires à la place du curseur, curseur ligne suivante. */
+  insertComment: (commentBlock: string) => boolean;
+};
 
 type EditorProps = {
   value: string;
@@ -17,6 +23,7 @@ type EditorProps = {
   readOnly?: boolean;
   fontSize?: number;
   placeholder?: string;
+  ref?: Ref<EditorHandle>;
 };
 
 function largePasteThreshold(text: string): boolean {
@@ -24,7 +31,7 @@ function largePasteThreshold(text: string): boolean {
   return text.length > 2000 || lines > 15;
 }
 
-export function Editor({ value, onChange, onLargePaste, theme = "light", readOnly = false, fontSize = 14, placeholder }: EditorProps) {
+export function Editor({ value, onChange, onLargePaste, theme = "light", readOnly = false, fontSize = 14, placeholder, ref }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
@@ -35,6 +42,23 @@ export function Editor({ value, onChange, onLargePaste, theme = "light", readOnl
 
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
   useEffect(() => { onLargePasteRef.current = onLargePaste; }, [onLargePaste]);
+
+  useImperativeHandle(ref, () => ({
+    insertComment(commentBlock: string) {
+      const view = viewRef.current;
+      if (!view || !commentBlock.trim()) return false;
+      const doc = view.state.doc.toString();
+      const from = view.state.selection.main.head;
+      const plan = planCommentInsert(doc, from, commentBlock.trim());
+      // Note : pas de scrollIntoView (jsdom ne supporte pas getClientRects).
+      view.dispatch({
+        changes: { from: plan.at, insert: plan.text },
+        selection: { anchor: plan.sel },
+      });
+      view.focus();
+      return true;
+    },
+  }), []);
 
   // Initialize editor once
   useEffect(() => {

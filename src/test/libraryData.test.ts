@@ -21,15 +21,12 @@ describe("library data", () => {
     }
   });
 
-  it("each exercise has 3-7 milestones with titles only", () => {
+  it("each exercise has examples and constraints (hints come from comments)", () => {
     for (const ex of LIBRARY_EXERCISES) {
-      expect(ex.milestones.length).toBeGreaterThanOrEqual(3);
-      expect(ex.milestones.length).toBeLessThanOrEqual(7);
-      expect(ex.milestones.every((m) => m.title.length > 0)).toBe(true);
-      // Never contains solution body in title
-      for (const m of ex.milestones) {
-        expect(m.title).not.toMatch(/print\(sum/);
-      }
+      expect(ex.examples.length).toBeGreaterThan(0);
+      expect(ex.constraints.length).toBeGreaterThan(0);
+      // Never contains solution body in statement
+      expect(ex.statement).not.toMatch(/print\(sum/);
     }
   });
 

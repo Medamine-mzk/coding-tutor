@@ -21,11 +21,6 @@ function setExerciseInStorage(ex: Partial<Exercise>) {
     difficulty: 2,
     concepts: ["loops"],
     source: "typed",
-    milestones: [
-      { id: "ms1", exerciseId: "ex_ws", order: 1, title: "Lire les entrées", successCriteria: "", hintSeeds: [] },
-      { id: "ms2", exerciseId: "ex_ws", order: 2, title: "Boucler sur les données", successCriteria: "", hintSeeds: [] },
-      { id: "ms3", exerciseId: "ex_ws", order: 3, title: "Afficher le résultat", successCriteria: "", hintSeeds: [] },
-    ],
     visibleTests: [{ id: "t_vis_1", input: "2 3", stdin: ["2", "3"], expected: "5", kind: "stdout", hidden: false }],
     hiddenTests: [{ id: "t_hid_1", input: "0 0", stdin: ["0", "0"], expected: "0", kind: "stdout", hidden: true, category: "edge case with zero" }],
     ...ex,
@@ -87,19 +82,60 @@ describe("WorkspaceClient — IDE + runner", () => {
     expect(stdin.value).toBe("10\n20");
   });
 
-  it("shows milestones with completion checkmarks (auto-detected)", async () => {
+  it("shows guided hints panel in class mode, practice notice otherwise", async () => {
     localStorage.setItem("locale", "fr");
+    localStorage.removeItem("student_join_token");
     setExerciseInStorage({});
     render(
       <I18nProvider>
         <WorkspaceClient />
       </I18nProvider>
     );
-    // Milestone list should appear with 3 items and next suggestion
-    expect(screen.getByTestId("milestone-list")).toBeInTheDocument();
-    expect(screen.getByText("Lire les entrées")).toBeInTheDocument();
-    // Default code has input and print, so Read and Display should be completed (✓)
-    await waitFor(() => expect(screen.getByText("Lire les entrées").closest("li")?.textContent).toContain("✓"));
+    // Practice mode (no join token): explanatory notice, no hint button
+    expect(screen.getByText(/mode classe/i)).toBeInTheDocument();
+    expect(screen.queryByTestId("request-hint")).not.toBeInTheDocument();
+  });
+
+  it("request-hint reveals next pair and inserts it as a comment", async () => {
+    localStorage.setItem("locale", "fr");
+    localStorage.setItem("student_join_token", "tok123");
+    setExerciseInStorage({});
+    const fetchMock = vi.fn(async () => new Response(
+      JSON.stringify({ pairIndex: 0, level: 1, totalPairs: 5, revealedCount: 1, capped: false, text: "# Lire la valeur de n" }),
+      { headers: { "content-type": "application/json" } }
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <I18nProvider>
+        <WorkspaceClient />
+      </I18nProvider>
+    );
+    const btn = await screen.findByTestId("request-hint");
+    fireEvent.click(btn);
+    await waitFor(() => {
+      const el = document.body.textContent ?? "";
+      expect(el).toContain("# Lire la valeur de n");
+      expect(el).toContain("1/5");
+    });
+    vi.unstubAllGlobals();
+    localStorage.removeItem("student_join_token");
+  });
+
+  it("chat panel offers no path into the editor (guided hints only)", async () => {
+    localStorage.setItem("locale", "fr");
+    localStorage.setItem("student_join_token", "tok123");
+    setExerciseInStorage({});
+    render(
+      <I18nProvider>
+        <WorkspaceClient />
+      </I18nProvider>
+    );
+    // Le bouton combiné tuteur→IDE n'existe plus ; seul l'indice guidé insère.
+    expect(await screen.findByTestId("request-hint")).toBeInTheDocument();
+    expect(screen.queryByTestId("request-hint-comment")).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId("insert-comment").length).toBe(0);
+    localStorage.removeItem("student_join_token");
   });
 
   it("shows TestRunner with visible diff and hidden category-only, and Completion when all pass", async () => {

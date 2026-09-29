@@ -45,7 +45,7 @@ describe("parser — extractExamples", () => {
   });
   it("fallback generic when no examples found but mentions somme", () => {
     const ex = extractExamples("Calculer la somme de deux nombres");
-    expect(ex[0].input).toBe("2 3");
+    expect(ex[0].input).toBe("2\n3");
     expect(ex[0].output).toBe("5");
   });
 });
@@ -55,12 +55,12 @@ describe("parser — extractConcepts", () => {
     const c = extractConcepts("Boucle for et condition if avec liste");
     expect(c).toContain("loops");
     expect(c).toContain("conditionals");
-    expect(c).toContain("lists");
+    expect(c).toContain("arrays");
   });
 });
 
 describe("parser — buildExerciseFromHeuristics", () => {
-  it("builds full Exercise with milestones and visibleTests", () => {
+  it("builds full Exercise with examples and visibleTests (no milestones)", () => {
     const raw = "Écrire un programme qui lit deux entiers sur deux lignes et affiche leur somme.\nEntrée: 2 3 → Sortie: 5\nContraintes: -1000 ≤ n ≤ 1000\nBoucle et fonction";
     const ex = buildExerciseFromHeuristics(raw, "typed");
     expect(ex.title.length).toBeGreaterThan(0);
@@ -68,7 +68,7 @@ describe("parser — buildExerciseFromHeuristics", () => {
     expect(ex.examples.length).toBeGreaterThan(0);
     expect(ex.constraints.length).toBeGreaterThan(0);
     expect(ex.concepts.length).toBeGreaterThan(0);
-    expect(ex.milestones.length).toBeGreaterThanOrEqual(3);
+    expect((ex as unknown as Record<string, unknown>)["milestones"]).toBeUndefined();
     expect(ex.visibleTests.length).toBeGreaterThan(0);
     expect(ex.uiLocale).toBe("fr");
     expect(ex.language).toBe("python");

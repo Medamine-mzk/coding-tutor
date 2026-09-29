@@ -15,7 +15,6 @@ function fakeEx(statement: string, examples: Exercise["examples"] = [{ input: "2
     difficulty: 2,
     concepts: ["loops"],
     source: "typed",
-    milestones: [],
     visibleTests: [],
     hiddenTests: [],
   };
@@ -25,9 +24,12 @@ describe("generateHeuristicReference", () => {
   it("produces sum reference for sum-like statement", () => {
     const ex = fakeEx("Écrire un programme qui calcule la somme de deux entiers");
     const ref = generateHeuristicReference(ex);
-    expect(ref).toContain("solve");
+    // BAC: two input() lines, + and print, no solve/sum/split/map
+    expect(ref).toContain("input");
     expect(ref).toContain("print");
-    expect(ref).toContain("sum");
+    expect(ref).toContain("+");
+    expect(ref).not.toContain("sum(");
+    expect(ref).not.toContain("split");
   });
 
   it("handles function signature", () => {

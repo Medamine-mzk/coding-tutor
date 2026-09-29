@@ -28,7 +28,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   const b = body as Record<string, unknown>;
   // Only allow editing before publish? For MVP, allow any update but don't change code.
-  const allowed: (keyof typeof ex)[] = ["title", "statement", "io_spec", "constraints", "examples", "concepts", "difficulty", "steps", "hidden_tests", "visible_tests", "visibility", "reference_solution"];
+  const allowed: (keyof typeof ex)[] = ["title", "statement", "io_spec", "constraints", "examples", "concepts", "difficulty", "hidden_tests", "visible_tests", "visibility", "reference_solution", "commented_reference"];
   const updates: Record<string, unknown> = {};
   for (const k of allowed) {
     if (k in b) updates[k] = b[k as string];

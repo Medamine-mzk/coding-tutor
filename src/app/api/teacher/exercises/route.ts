@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacher } from "@/lib/teacher/auth";
 import { createTeacherExercise, listTeacherExercisesByTeacher, listPublicTeacherExercises } from "@/lib/teacher/store";
-import type { Step } from "@/lib/exercise/stepPlan";
+import { addComments } from "@/lib/teacher/addComments";
 import type { TestCase } from "@/lib/exercise/types";
-
-function isValidStep(s: unknown): s is Step {
-  if (!s || typeof s !== "object") return false;
-  const o = s as Record<string, unknown>;
-  return typeof o["title"] === "string" && typeof o["order"] === "number" && typeof o["check_type"] === "string";
-}
 
 // POST /api/teacher/exercises — manual create (Phase 1, no LLM, no upload)
 export async function POST(req: NextRequest) {
@@ -30,7 +24,6 @@ export async function POST(req: NextRequest) {
     examples?: Array<{ input: string; output: string }>;
     concepts?: string[];
     difficulty?: number;
-    steps?: unknown[];
     hidden_tests?: TestCase[];
     visible_tests?: TestCase[];
     language?: string;
@@ -45,21 +38,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "statement requis" }, { status: 400 });
   }
 
-  const steps = (b.steps ?? []) as Step[];
-  if (!Array.isArray(steps) || steps.length < 1 || steps.length > 7) {
-    return NextResponse.json({ error: "steps: 1 à 7 requis, chaque step doit avoir title/goal/check_type" }, { status: 400 });
-  }
-  for (const s of steps) {
-    if (!isValidStep(s)) return NextResponse.json({ error: "step invalide: title/order/check_type requis" }, { status: 400 });
-  }
-
-  // Validate reference if provided — re-run verification before allowing reference_verified:true
+  // Reference optionnelle : commentaires FR auto-générés pour les indices.
+  // La vérification complète a lieu au publish (voir publish route).
   let reference_verified = false;
   let reference_solution: string | null = null;
+  let commented_reference: string | null = null;
   if (b.reference_solution && typeof b.reference_solution === "string" && b.reference_solution.trim()) {
     reference_solution = b.reference_solution;
-    // We don't auto-verify here; verification happens on publish (see publish route).
-    // For manual without reference, it stays false and dashboard shows warning (addendum 3.1.2).
+    try {
+      commented_reference = addComments(reference_solution);
+    } catch {
+      commented_reference = null;
+    }
   }
 
   const ex = createTeacherExercise({
@@ -71,7 +61,6 @@ export async function POST(req: NextRequest) {
     examples: b.examples ?? [],
     concepts: b.concepts ?? ["loops"],
     difficulty: (b.difficulty as 1 | 2 | 3 | 4 | 5) ?? 2,
-    steps: steps as Step[],
     hidden_tests: b.hidden_tests ?? [],
     visible_tests: b.visible_tests ?? [],
     language: (b.language as "python") ?? "python",
@@ -79,6 +68,7 @@ export async function POST(req: NextRequest) {
     created_via: "manual",
     reference_verified,
     reference_solution,
+    commented_reference,
   });
 
   return NextResponse.json({ ok: true, exercise: ex }, { status: 201 });

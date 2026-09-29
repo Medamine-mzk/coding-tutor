@@ -14,8 +14,6 @@ export function createSession(data: Omit<Session, "id" | "startedAt"> & { id?: s
     id,
     exerciseId: data.exerciseId,
     canonicalExerciseId: data.canonicalExerciseId ?? null,
-    stepPlanVersion: data.stepPlanVersion,
-    currentStepOrder: data.currentStepOrder ?? 1,
     currentCode: data.currentCode ?? "",
     status: data.status ?? "in_progress",
     startedAt: now,
@@ -60,7 +58,7 @@ export function listSessionsByStudentIdentity(studentIdentityId: string): Sessio
 }
 
 // For dashboard aggregates — minimal, in-memory GROUP BY
-export function getRosterForExercise(exerciseId: string): Array<{ studentIdentityId: string; displayName?: string; currentStep: number; lastActive: string; sessionCount: number }> {
+export function getRosterForExercise(exerciseId: string): Array<{ studentIdentityId: string; displayName?: string; hintsRevealed: number; lastActive: string; sessionCount: number }> {
   // This is a placeholder that will be joined with StudentIdentity store in the dashboard route
   const sessList = listSessionsByExercise(exerciseId);
   const byStudent = new Map<string, Session[]>();
@@ -70,10 +68,9 @@ export function getRosterForExercise(exerciseId: string): Array<{ studentIdentit
     byStudent.get(sid)!.push(s);
   }
   return [...byStudent.entries()].map(([sid, list]) => {
-    const latest = list.sort((a, b) => (b.startedAt > a.startedAt ? 1 : -1))[0];
-    const maxStep = Math.max(...list.map((s) => s.currentStepOrder ?? 1));
+    const hintsRevealed = Math.max(0, ...list.map((s) => s.revealedHints?.length ?? 0));
     const lastActive = list.reduce((acc, s) => (s.startedAt > acc ? s.startedAt : acc), list[0].startedAt);
-    return { studentIdentityId: sid, currentStep: maxStep, lastActive, sessionCount: list.length };
+    return { studentIdentityId: sid, hintsRevealed, lastActive, sessionCount: list.length };
   });
 }
 

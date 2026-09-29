@@ -19,12 +19,11 @@ describe("login exercise — auth", () => {
     expect(ex.concepts).toEqual(expect.arrayContaining(["conditionals", "strings"]));
   });
 
-  it("generates 5 milestones for auth (lire, vérifier, afficher)", () => {
+  it("detects conditionals concepts and examples for auth", () => {
     const ex = buildExerciseFromHeuristics(LOGIN_TEXT, "typed", "fr");
-    expect(ex.milestones.length).toBeGreaterThanOrEqual(3);
-    const titles = ex.milestones.map((m) => m.title);
-    expect(titles.some((t) => t.includes("login"))).toBe(true);
-    expect(titles.some((t) => t.includes("Vérifier") || t.includes("égalité"))).toBe(true);
+    expect(ex.concepts).toEqual(expect.arrayContaining(["conditionals"]));
+    expect(ex.examples.length).toBeGreaterThan(0);
+    expect(ex.visibleTests.length).toBeGreaterThan(0);
   });
 
   it("generates hidden tests for auth (correct, wrong, case, empty)", () => {
@@ -33,13 +32,15 @@ describe("login exercise — auth", () => {
     expect(ex.hiddenTests[0].category).toMatch(/correct/i);
   });
 
-  it("generates minimal skeleton for auth (not sum)", () => {
+  it("generates leak-free skeleton for auth (title only, no solution structure)", () => {
     const ex = buildExerciseFromHeuristics(LOGIN_TEXT, "typed", "fr");
     const skel = generateSkeleton(ex);
-    expect(skel).toContain('login = input');
-    expect(skel).toContain('mdp = input');
-    expect(skel).toContain('if login == "admin"');
-    expect(skel).not.toContain('a = int(input("a: "))');
+    expect(skel).toContain(ex.title);
+    expect(skel).toContain("Écris ton code ici");
+    expect(skel).not.toContain("input(");
+    expect(skel).not.toContain("print(");
+    expect(skel).not.toContain("if ");
+    expect(skel).not.toContain("admin");
   });
 
   it("canned fallback contextual for auth (level 1 login)", () => {
