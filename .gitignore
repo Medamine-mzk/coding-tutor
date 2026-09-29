@@ -45,6 +45,13 @@ next-env.d.ts
 .scratch/
 .opencode/
 
+# local AI-assistant workspace (skills, agent notes, internal docs) — not shipped
+skills/
+AGENTS.md
+CLAUDE.md
+CONTEXT.md
+step-plan-and-exercise-cache-addendum.md
+
 # pwa / cache
 .next/cache/
 
