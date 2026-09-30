@@ -30,6 +30,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         if (stdin.length > 1 && stdin[stdin.length - 1] === "") stdin.pop();
         try {
           const res = await runPythonWithStdin(ex.reference_solution, stdin, 2000);
+          if (res.sandboxUnavailable) {
+            // Pas de Python sur cet hébergeur (ex. serverless) : on ne peut
+            // pas vérifier — on ne remet pas en cause la correction du prof.
+            warning = (warning ? `${warning} ` : "") + "Vérification automatique indisponible sur cet hébergeur (Python absent) — vérifiez la correction manuellement.";
+            reference_verified = false;
+            break;
+          }
           const actual = res.stdout.trim();
           if (res.timedOut || res.exitCode !== 0 || actual !== eg.output.trim()) {
             warning = (warning ? `${warning} ` : "") + `La référence ne produit pas la sortie attendue pour "${eg.input}": obtenu "${actual.slice(0, 80)}".`;

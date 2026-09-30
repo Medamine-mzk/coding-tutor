@@ -4,11 +4,9 @@ import { runPythonWithStdin } from "./runPython";
 export type ValidateResult = {
   kept: TestCase[];
   discarded: Array<{ test: TestCase; reason: string }>;
+  /** True when the sandbox itself is missing (no Python on host): nothing was really checked. */
+  sandboxUnavailable?: boolean;
 };
-
-function isPythonAvailable(): boolean {
-  return true;
-}
 
 export async function validateTestsWithReference(
   tests: TestCase[],
@@ -19,16 +17,21 @@ export async function validateTestsWithReference(
   const kept: TestCase[] = [];
   const discarded: Array<{ test: TestCase; reason: string }> = [];
 
-  if (!referenceCode || !isPythonAvailable()) {
-    // No reference or python not available — keep all (degrade gracefully)
+  if (!referenceCode) {
     return { kept: tests, discarded: [] };
   }
 
-  for (const tc of tests) {
+  for (let i = 0; i < tests.length; i++) {
+    const tc = tests[i];
     // Only validate stdout tests via stdin; call tests need separate harness
     if (tc.kind === "call" && tc.fnCall) {
       const harness = `${referenceCode}\n\n__result = ${tc.fnCall}\nprint(__result)\n`;
       const res = await runPythonWithStdin(harness, tc.stdin ?? [], timeoutMs);
+      // discards store test ids (serializable for logs/API)
+      if (res.sandboxUnavailable) {
+        // No Python on this host (e.g. serverless) — keep everything, degrade gracefully
+        return { kept: [...kept, ...tests.slice(i)], discarded, sandboxUnavailable: true };
+      }
       if (res.timedOut) {
         discarded.push({ test: tc, reason: "reference timed out" });
         continue;
@@ -47,6 +50,10 @@ export async function validateTestsWithReference(
     } else {
       const stdin = tc.stdin ?? (tc.input ? tc.input.split(/[ \n]+/).filter(Boolean) : []);
       const res = await runPythonWithStdin(referenceCode, stdin, timeoutMs);
+      if (res.sandboxUnavailable) {
+        // No Python on this host (e.g. serverless) — keep everything, degrade gracefully
+        return { kept: [...kept, ...tests.slice(i)], discarded, sandboxUnavailable: true };
+      }
       if (res.timedOut) {
         discarded.push({ test: tc, reason: "reference timed out" });
         continue;

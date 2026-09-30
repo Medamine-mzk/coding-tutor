@@ -8,7 +8,14 @@ export type RunPythonResult = {
   stderr: string;
   exitCode: number;
   timedOut: boolean;
+  /** True when the sandbox itself is missing (e.g. no `python` on serverless).
+   * Callers must degrade gracefully instead of blaming the code under test. */
+  sandboxUnavailable?: boolean;
 };
+
+function isSandboxError(err: Error): boolean {
+  return /ENOENT|EACCES|spawn .* failed|not found/i.test(err.message);
+}
 
 /**
  * Run Python code with given stdin lines via a temp file and `python` spawn.
@@ -44,7 +51,7 @@ export async function runPythonWithStdin(code: string, stdin: string[], timeoutM
       });
       child.on("error", (err) => {
         clearTimeout(timer);
-        resolve({ stdout, stderr: err.message, exitCode: 1, timedOut: false });
+        resolve({ stdout, stderr: err.message, exitCode: 1, timedOut: false, sandboxUnavailable: isSandboxError(err) || undefined });
       });
       child.on("close", (code) => {
         clearTimeout(timer);
