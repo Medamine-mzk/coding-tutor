@@ -8,7 +8,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const auth = requireTeacher(req);
   if ("error" in auth) return auth.error;
   const { id } = await params;
-  const ex = getTeacherExerciseById(id);
+  const ex = await getTeacherExerciseById(id);
   if (!ex) return NextResponse.json({ error: "Exercice non trouvé" }, { status: 404 });
   if (ex.teacher_id !== auth.teacher.id) return NextResponse.json({ error: "Non autorisé" }, { status: 403 });
 
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     reference_verified = false;
   }
 
-  const updated = updateTeacherExercise(id, {
+  const updated = await updateTeacherExercise(id, {
     reference_verified,
     commented_reference,
   });

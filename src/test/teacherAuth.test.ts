@@ -9,9 +9,9 @@ import {
 } from "@/lib/teacher/store";
 
 describe("teacher auth stateless (serverless-safe)", () => {
-  it("derives a stable teacher id per email", () => {
+  it("derives a stable teacher id per email", async () => {
     expect(teacherIdForEmail("Prof@Lycee.tn")).toBe(teacherIdForEmail("prof@lycee.tn"));
-    expect(createTeacher("prof@lycee.tn", "Prof").id).toBe(teacherIdForEmail("prof@lycee.tn"));
+    expect((await createTeacher("prof@lycee.tn", "Prof")).id).toBe(teacherIdForEmail("prof@lycee.tn"));
   });
 
   it("magic token round-trips without shared memory", () => {
@@ -33,16 +33,16 @@ describe("teacher auth stateless (serverless-safe)", () => {
     expect(consumeMagicToken("garbage")).toBeNull();
   });
 
-  it("session token embeds the teacher and validates anywhere", () => {
-    const teacher = createTeacher("sess@lycee.tn", "Sess Prof");
+  it("session token embeds the teacher and validates anywhere", async () => {
+    const teacher = await createTeacher("sess@lycee.tn", "Sess Prof");
     const { token, expiresAt } = createTeacherSession(teacher);
     expect(expiresAt).toBeGreaterThan(Date.now());
     const back = getTeacherBySessionToken(token);
     expect(back).toEqual({ id: teacher.id, email: teacher.email, name: teacher.name, created_at: teacher.created_at });
   });
 
-  it("rejects tampered or malformed session tokens", () => {
-    const teacher = createTeacher("sess2@lycee.tn", "Sess2");
+  it("rejects tampered or malformed session tokens", async () => {
+    const teacher = await createTeacher("sess2@lycee.tn", "Sess2");
     const { token } = createTeacherSession(teacher);
     const [payload, sig] = token.split(".");
     expect(getTeacherBySessionToken(`${payload}tampered.${sig}`)).toBeNull();

@@ -21,9 +21,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "join_token requis" }, { status: 400 });
   }
 
-  const si = getStudentIdentityByToken(token);
+  const si = await getStudentIdentityByToken(token);
   if (!si) return NextResponse.json({ error: "join_token invalide" }, { status: 404 });
-  const teacherEx = getTeacherExerciseById(si.exercise_id);
+  const teacherEx = await getTeacherExerciseById(si.exercise_id);
   if (!teacherEx) return NextResponse.json({ error: "Exercice non trouvé" }, { status: 404 });
 
   // Commented reference: stored, or generated on the fly from reference_solution
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     }
     try {
       commented = addComments(teacherEx.reference_solution);
-      updateTeacherExercise(teacherEx.id, { commented_reference: commented });
+      await updateTeacherExercise(teacherEx.id, { commented_reference: commented });
     } catch (e) {
       return NextResponse.json({ error: `Commentaires impossibles: ${e instanceof Error ? e.message : String(e)}` }, { status: 400 });
     }
@@ -46,12 +46,12 @@ export async function POST(req: NextRequest) {
   }
 
   // Session for this identity+exercise (join creates one; resume reuses latest)
-  const sessions = listSessionsByExercise(teacherEx.id).filter(
+  const sessions = (await listSessionsByExercise(teacherEx.id)).filter(
     (s) => s.student_identity_id === si.id || s.studentIdentityId === si.id
   );
   let sess = sessions.sort((a, b) => (b.startedAt > a.startedAt ? 1 : -1))[0];
   if (!sess) {
-    sess = createSession({
+    sess = await createSession({
       exerciseId: teacherEx.id,
       canonicalExerciseId: teacherEx.canonical_id ?? teacherEx.id,
       currentCode: "",
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
   const entry = revealed.find((r) => r.pair === current);
   if (entry) entry.level = nextLevel;
   else revealed.push({ pair: current, level: nextLevel });
-  updateSession(sess.id, { revealedHints: revealed });
+  await updateSession(sess.id, { revealedHints: revealed });
 
   return NextResponse.json({
     pairIndex: current,

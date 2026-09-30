@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
     warning = "Aucune solution de référence fournie — les indices seront générés à partir de l'énoncé uniquement.";
   }
 
-  const ex = createTeacherExercise({
+  const ex = await createTeacherExercise({
     teacher_id: auth.teacher.id,
     title: title.trim(),
     statement: statement.trim(),

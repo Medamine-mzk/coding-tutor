@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const ex = createTeacherExercise({
+  const ex = await createTeacherExercise({
     teacher_id: auth.teacher.id,
     title: b.title.trim(),
     statement: b.statement.trim(),
@@ -80,13 +80,13 @@ export async function GET(req: NextRequest) {
   if (url.searchParams.get("public") === "1") {
     const q = url.searchParams.get("q") ?? "";
     const { searchPublicExercises, listPublicTeacherExercises } = await import("@/lib/teacher/store");
-    const list = q ? searchPublicExercises(q) : listPublicTeacherExercises();
+    const list = q ? await searchPublicExercises(q) : await listPublicTeacherExercises();
     return NextResponse.json({ exercises: list });
   }
 
   const auth = requireTeacher(req);
   if ("error" in auth) return auth.error;
 
-  const list = listTeacherExercisesByTeacher(auth.teacher.id);
+  const list = await listTeacherExercisesByTeacher(auth.teacher.id);
   return NextResponse.json({ exercises: list });
 }

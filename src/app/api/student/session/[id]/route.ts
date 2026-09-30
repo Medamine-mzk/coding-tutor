@@ -3,14 +3,14 @@ import { getSession, updateSession } from "@/lib/session/store";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const sess = getSession(id);
+  const sess = await getSession(id);
   if (!sess) return NextResponse.json({ error: "Session non trouvée" }, { status: 404 });
   return NextResponse.json({ session: sess });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const sess = getSession(id);
+  const sess = await getSession(id);
   if (!sess) return NextResponse.json({ error: "Session non trouvée" }, { status: 404 });
 
   let body: unknown;
@@ -26,7 +26,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (typeof b.status === "string" && ["in_progress", "completed", "abandoned"].includes(b.status)) patch.status = b.status;
   if (b.finishedAt) patch.finishedAt = b.finishedAt;
 
-  const updated = updateSession(id, patch as never);
+  const updated = await updateSession(id, patch as never);
   return NextResponse.json({ ok: true, session: updated });
 }
 

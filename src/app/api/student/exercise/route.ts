@@ -10,12 +10,12 @@ export async function GET(req: NextRequest) {
   let teacherEx: import("@/lib/teacher/types").TeacherExercise | undefined;
 
   if (joinToken) {
-    const si = getStudentIdentityByToken(joinToken);
+    const si = await getStudentIdentityByToken(joinToken);
     if (!si) return NextResponse.json({ error: "join_token invalide" }, { status: 404 });
-    teacherEx = getTeacherExerciseById(si.exercise_id);
+    teacherEx = await getTeacherExerciseById(si.exercise_id);
     if (!teacherEx) return NextResponse.json({ error: "Exercice non trouvé" }, { status: 404 });
   } else if (code) {
-    teacherEx = getTeacherExerciseByCode(code.trim().toUpperCase());
+    teacherEx = await getTeacherExerciseByCode(code.trim().toUpperCase());
     if (!teacherEx) return NextResponse.json({ error: "Code invalide" }, { status: 404 });
   } else {
     return NextResponse.json({ error: "code ou join_token requis" }, { status: 400 });

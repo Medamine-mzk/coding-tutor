@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Teacher, TeacherExercise, StudentIdentity } from "./types";
 import type { TestCase } from "../exercise/types";
+import { getSupabase } from "../db/supabase";
 
 // In-memory stores for dev (teachers/exercises/identities persist to disk).
 // Auth tokens (magic-link + sessions) are STATELESS HMAC-signed payloads so
@@ -112,12 +113,29 @@ function randomCode(): string {
   return `PY-${s}`;
 }
 
-export function getTeacherById(id: string): Teacher | undefined {
+type TeacherRow = { id: string; email: string; name: string; created_at: string };
+
+function rowToTeacher(r: TeacherRow): Teacher {
+  return { id: r.id, email: r.email, name: r.name, created_at: r.created_at };
+}
+
+export async function getTeacherById(id: string): Promise<Teacher | undefined> {
+  const db = getSupabase();
+  if (db) {
+    const { data } = await db.from("teachers").select("*").eq("id", id).maybeSingle();
+    return data ? rowToTeacher(data as TeacherRow) : undefined;
+  }
   return teachers.get(id);
 }
 
-export function getTeacherByEmail(email: string): Teacher | undefined {
-  const id = teacherByEmail.get(email.toLowerCase());
+export async function getTeacherByEmail(email: string): Promise<Teacher | undefined> {
+  const db = getSupabase();
+  const lower = email.toLowerCase();
+  if (db) {
+    const { data } = await db.from("teachers").select("*").eq("email", lower).maybeSingle();
+    return data ? rowToTeacher(data as TeacherRow) : undefined;
+  }
+  const id = teacherByEmail.get(lower);
   return id ? teachers.get(id) : undefined;
 }
 
@@ -127,11 +145,17 @@ export function teacherIdForEmail(email: string): string {
   return `t_${createHash("sha256").update(email.toLowerCase(), "utf-8").digest("hex").slice(0, 12)}`;
 }
 
-export function createTeacher(email: string, name: string): Teacher {
-  const existing = getTeacherByEmail(email);
+export async function createTeacher(email: string, name: string): Promise<Teacher> {
+  const existing = await getTeacherByEmail(email);
   if (existing) return existing;
   const id = teacherIdForEmail(email);
   const t: Teacher = { id, name: name.trim() || email.split("@")[0], email: email.toLowerCase(), created_at: new Date().toISOString() };
+  const db = getSupabase();
+  if (db) {
+    const { data, error } = await db.from("teachers").insert({ id: t.id, email: t.email, name: t.name, created_at: t.created_at }).select().single();
+    if (error) throw new Error(`createTeacher DB: ${error.message}`);
+    return rowToTeacher(data as TeacherRow);
+  }
   teachers.set(id, t);
   teacherByEmail.set(email.toLowerCase(), id);
   saveToDisk();
@@ -188,18 +212,57 @@ export function deleteTeacherSession(_token: string) {
 
 // --- TeacherExercise ---
 
-export function generateUniqueCode(): string {
+type ExerciseRow = {
+  id: string; teacher_id: string; code: string; title: string; statement: string;
+  language: string; concepts: unknown; difficulty: number; io_spec: string;
+  constraints: unknown; examples: unknown; hidden_tests: unknown; visible_tests: unknown;
+  visibility: string; created_via: string; reference_verified: boolean;
+  reference_solution: string | null; commented_reference: string | null; canonical_id: string | null;
+  created_at: string; updated_at: string;
+};
+
+function rowToTeacherExercise(r: ExerciseRow): TeacherExercise {
+  return {
+    id: r.id,
+    teacher_id: r.teacher_id,
+    code: r.code,
+    title: r.title,
+    statement: r.statement,
+    language: (r.language ?? "python") as "python",
+    concepts: Array.isArray(r.concepts) ? (r.concepts as string[]) : [],
+    difficulty: (r.difficulty ?? 2) as TeacherExercise["difficulty"],
+    io_spec: r.io_spec ?? "",
+    constraints: Array.isArray(r.constraints) ? (r.constraints as string[]) : [],
+    examples: Array.isArray(r.examples) ? (r.examples as Array<{ input: string; output: string }>) : [],
+    hidden_tests: Array.isArray(r.hidden_tests) ? (r.hidden_tests as TestCase[]) : [],
+    visible_tests: Array.isArray(r.visible_tests) ? (r.visible_tests as TestCase[]) : [],
+    visibility: (r.visibility ?? "code_only") as TeacherExercise["visibility"],
+    created_via: (r.created_via ?? "manual") as TeacherExercise["created_via"],
+    reference_verified: !!r.reference_verified,
+    reference_solution: r.reference_solution ?? null,
+    commented_reference: r.commented_reference ?? null,
+    canonical_id: r.canonical_id ?? null,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+  };
+}
+
+export async function generateUniqueCode(): Promise<string> {
+  const db = getSupabase();
   for (let i = 0; i < 20; i++) {
     const c = randomCode();
-    if (!teacherExercisesByCode.has(c)) return c;
+    const taken = db
+      ? !!(await db.from("teacher_exercises").select("id").eq("code", c).maybeSingle()).data
+      : teacherExercisesByCode.has(c);
+    if (!taken) return c;
   }
   // fallback with longer entropy
   return `PY-${randomBytes(3).toString("hex").toUpperCase().slice(0, 6)}`;
 }
 
-export function createTeacherExercise(data: Omit<TeacherExercise, "id" | "code" | "created_at" | "updated_at"> & { id?: string; code?: string }): TeacherExercise {
+export async function createTeacherExercise(data: Partial<Omit<TeacherExercise, "id" | "code" | "created_at" | "updated_at">> & { id?: string; code?: string; teacher_id: string; title: string; statement: string; created_via: TeacherExercise["created_via"] }): Promise<TeacherExercise> {
   const id = data.id ?? `ex_${randomBytes(6).toString("hex")}`;
-  const code = data.code ?? generateUniqueCode();
+  const code = data.code ?? (await generateUniqueCode());
   const now = new Date().toISOString();
   const ex: TeacherExercise = {
     id,
@@ -224,6 +287,12 @@ export function createTeacherExercise(data: Omit<TeacherExercise, "id" | "code" 
     created_at: now,
     updated_at: now,
   };
+  const db = getSupabase();
+  if (db) {
+    const { data: row, error } = await db.from("teacher_exercises").insert({ ...ex }).select().single();
+    if (error) throw new Error(`createTeacherExercise DB: ${error.message}`);
+    return rowToTeacherExercise(row as ExerciseRow);
+  }
   teacherExercises.set(id, ex);
   teacherExercisesByCode.set(code, id);
   if (!teacherExercisesByTeacher.has(data.teacher_id)) teacherExercisesByTeacher.set(data.teacher_id, new Set());
@@ -232,35 +301,81 @@ export function createTeacherExercise(data: Omit<TeacherExercise, "id" | "code" 
   return ex;
 }
 
-export function getTeacherExerciseById(id: string): TeacherExercise | undefined {
+export async function getTeacherExerciseById(id: string): Promise<TeacherExercise | undefined> {
+  const db = getSupabase();
+  if (db) {
+    const { data } = await db.from("teacher_exercises").select("*").eq("id", id).maybeSingle();
+    return data ? rowToTeacherExercise(data as ExerciseRow) : undefined;
+  }
   return teacherExercises.get(id);
 }
 
-export function getTeacherExerciseByCode(code: string): TeacherExercise | undefined {
-  const id = teacherExercisesByCode.get(code.toUpperCase());
+export async function getTeacherExerciseByCode(code: string): Promise<TeacherExercise | undefined> {
+  const db = getSupabase();
+  const upper = code.toUpperCase();
+  if (db) {
+    const { data } = await db.from("teacher_exercises").select("*").eq("code", upper).maybeSingle();
+    return data ? rowToTeacherExercise(data as ExerciseRow) : undefined;
+  }
+  const id = teacherExercisesByCode.get(upper);
   return id ? teacherExercises.get(id) : undefined;
 }
 
-export function listTeacherExercisesByTeacher(teacherId: string): TeacherExercise[] {
+export async function listTeacherExercisesByTeacher(teacherId: string): Promise<TeacherExercise[]> {
+  const db = getSupabase();
+  if (db) {
+    const { data } = await db.from("teacher_exercises").select("*").eq("teacher_id", teacherId).order("created_at", { ascending: false });
+    return (data as ExerciseRow[] | null ?? []).map(rowToTeacherExercise);
+  }
   const ids = teacherExercisesByTeacher.get(teacherId);
   if (!ids) return [];
   return [...ids].map((id) => teacherExercises.get(id)!).filter(Boolean);
 }
 
-export function listPublicTeacherExercises(): TeacherExercise[] {
+export async function listPublicTeacherExercises(): Promise<TeacherExercise[]> {
+  const db = getSupabase();
+  if (db) {
+    const { data } = await db.from("teacher_exercises").select("*").eq("visibility", "public_library").order("created_at", { ascending: false }).limit(20);
+    return (data as ExerciseRow[] | null ?? []).map(rowToTeacherExercise);
+  }
   return [...teacherExercises.values()].filter((e) => e.visibility === "public_library");
 }
 
-export function searchPublicExercises(q: string): TeacherExercise[] {
+export async function searchPublicExercises(q: string): Promise<TeacherExercise[]> {
+  const db = getSupabase();
   const lower = q.toLowerCase().trim();
-  if (!lower) return listPublicTeacherExercises().slice(0, 20);
-  return listPublicTeacherExercises().filter((e) => {
+  if (!lower) return (await listPublicTeacherExercises()).slice(0, 20);
+  if (db) {
+    const esc = lower.replace(/[%_\\]/g, (c) => `\\${c}`);
+    const { data } = await db.from("teacher_exercises").select("*").eq("visibility", "public_library")
+      .or(`title.ilike.%${esc}%,statement.ilike.%${esc}%`).limit(20);
+    return (data as ExerciseRow[] | null ?? []).map(rowToTeacherExercise);
+  }
+  return listPublicTeacherExercisesSync().filter((e) => {
     const hay = `${e.title} ${e.statement} ${e.teacher_id}`.toLowerCase();
     return hay.includes(lower);
   }).slice(0, 20);
 }
 
-export function updateTeacherExercise(id: string, updates: Partial<TeacherExercise>): TeacherExercise | null {
+function listPublicTeacherExercisesSync(): TeacherExercise[] {
+  return [...teacherExercises.values()].filter((e) => e.visibility === "public_library");
+}
+
+export async function updateTeacherExercise(id: string, updates: Partial<TeacherExercise>): Promise<TeacherExercise | null> {
+  const db = getSupabase();
+  if (db) {
+    if (updates.code) {
+      const { data: clash } = await db.from("teacher_exercises").select("id").eq("code", updates.code).maybeSingle();
+      if (clash && (clash as { id: string }).id !== id) return null;
+    }
+    const { updated_at: _omit, id: _id, ...rest } = updates as Record<string, unknown>;
+    void _omit; void _id;
+    const { data, error } = await db.from("teacher_exercises")
+      .update({ ...rest, updated_at: new Date().toISOString() })
+      .eq("id", id).select().single();
+    if (error) return null;
+    return data ? rowToTeacherExercise(data as ExerciseRow) : null;
+  }
   const ex = teacherExercises.get(id);
   if (!ex) return null;
   const next = { ...ex, ...updates, updated_at: new Date().toISOString() } as TeacherExercise;
@@ -275,7 +390,13 @@ export function updateTeacherExercise(id: string, updates: Partial<TeacherExerci
   return next;
 }
 
-export function deleteTeacherExercise(id: string): boolean {
+export async function deleteTeacherExercise(id: string): Promise<boolean> {
+  const db = getSupabase();
+  if (db) {
+    const { data, error } = await db.from("teacher_exercises").delete().eq("id", id).select("id");
+    if (error) return false;
+    return (data?.length ?? 0) > 0;
+  }
   const ex = teacherExercises.get(id);
   if (!ex) return false;
   teacherExercises.delete(id);
@@ -287,10 +408,22 @@ export function deleteTeacherExercise(id: string): boolean {
 
 // --- StudentIdentity ---
 
-export function createStudentIdentity(exerciseId: string, displayName: string): StudentIdentity {
+type IdentityRow = { id: string; exercise_id: string; display_name: string; join_token: string; created_at: string };
+
+function rowToIdentity(r: IdentityRow): StudentIdentity {
+  return { id: r.id, exercise_id: r.exercise_id, display_name: r.display_name, join_token: r.join_token, created_at: r.created_at };
+}
+
+export async function createStudentIdentity(exerciseId: string, displayName: string): Promise<StudentIdentity> {
   const id = `si_${randomBytes(6).toString("hex")}`;
   const join_token = randomBytes(16).toString("hex");
   const si: StudentIdentity = { id, exercise_id: exerciseId, display_name: displayName.trim().slice(0, 30) || "Anonyme", join_token, created_at: new Date().toISOString() };
+  const db = getSupabase();
+  if (db) {
+    const { data, error } = await db.from("student_identities").insert({ ...si }).select().single();
+    if (error) throw new Error(`createStudentIdentity DB: ${error.message}`);
+    return rowToIdentity(data as IdentityRow);
+  }
   studentIdentities.set(join_token, si);
   if (!studentIdentitiesByExercise.has(exerciseId)) studentIdentitiesByExercise.set(exerciseId, new Set());
   studentIdentitiesByExercise.get(exerciseId)!.add(join_token);
@@ -298,11 +431,21 @@ export function createStudentIdentity(exerciseId: string, displayName: string): 
   return si;
 }
 
-export function getStudentIdentityByToken(token: string): StudentIdentity | undefined {
+export async function getStudentIdentityByToken(token: string): Promise<StudentIdentity | undefined> {
+  const db = getSupabase();
+  if (db) {
+    const { data } = await db.from("student_identities").select("*").eq("join_token", token).maybeSingle();
+    return data ? rowToIdentity(data as IdentityRow) : undefined;
+  }
   return studentIdentities.get(token);
 }
 
-export function getStudentIdentitiesByExercise(exerciseId: string): StudentIdentity[] {
+export async function getStudentIdentitiesByExercise(exerciseId: string): Promise<StudentIdentity[]> {
+  const db = getSupabase();
+  if (db) {
+    const { data } = await db.from("student_identities").select("*").eq("exercise_id", exerciseId).order("created_at", { ascending: true });
+    return (data as IdentityRow[] | null ?? []).map(rowToIdentity);
+  }
   const set = studentIdentitiesByExercise.get(exerciseId);
   if (!set) return [];
   return [...set].map((t) => studentIdentities.get(t)!).filter(Boolean);

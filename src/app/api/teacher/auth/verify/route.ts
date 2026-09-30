@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Lien invalide ou expiré (15 min)" }, { status: 400 });
   }
 
-  const teacher = createTeacher(rec.email, rec.name);
+  const teacher = await createTeacher(rec.email, rec.name);
   const sess = createTeacherSession(teacher);
 
   // For browser flow, redirect to teacher dashboard with cookie set
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   if (!token) return NextResponse.json({ error: "Token manquant" }, { status: 400 });
   const rec = consumeMagicToken(token);
   if (!rec) return NextResponse.json({ error: "Lien invalide ou expiré" }, { status: 400 });
-  const teacher = createTeacher(rec.email, rec.name);
+  const teacher = await createTeacher(rec.email, rec.name);
   const sess = createTeacherSession(teacher);
   const res = NextResponse.json({ ok: true, teacher, token: sess.token });
   setTeacherSessionCookie(res, sess.token, sess.expiresAt);

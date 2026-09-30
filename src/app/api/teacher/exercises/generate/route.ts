@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
       const ok = await executionVerifiedMatch(cand, provisional.examples);
       if (ok) {
         // Find teacher exercise that corresponds to this canonical
-        const allTeacherEx = listTeacherExercisesByTeacher(auth.teacher.id);
+        const allTeacherEx = await listTeacherExercisesByTeacher(auth.teacher.id);
         const match = allTeacherEx.find((te) => te.canonical_id === cand.id || te.title === cand.languages[Object.keys(cand.languages)[0]]?.title);
         suggestions.push({
           id: cand.id,
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
 
   // Also check own exercises by title similarity (simple, no embedding)
   try {
-    const own = listTeacherExercisesByTeacher(auth.teacher.id);
+    const own = await listTeacherExercisesByTeacher(auth.teacher.id);
     const lower = trimmed.toLowerCase().slice(0, 100);
     for (const ex of own) {
       if (ex.title.toLowerCase().includes(lower.slice(0, 20)) || lower.includes(ex.title.toLowerCase().slice(0, 20))) {

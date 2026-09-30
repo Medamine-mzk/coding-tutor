@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getTeacherExerciseByCode, createStudentIdentity, getStudentIdentityByToken } from "@/lib/teacher/store";
+import { getTeacherExerciseByCode, getTeacherExerciseById, createStudentIdentity, getStudentIdentityByToken } from "@/lib/teacher/store";
 import { createSession } from "@/lib/session/store";
 import { teacherExerciseToClientExercise } from "@/lib/teacher/toExerciseView";
 
@@ -22,15 +22,11 @@ export async function POST(req: NextRequest) {
   const tokenRaw = join_token ?? joinToken;
   // Resume flow: if join_token provided, try to resume without creating new identity
   if (tokenRaw && typeof tokenRaw === "string") {
-    const existing = getStudentIdentityByToken(tokenRaw);
+    const existing = await getStudentIdentityByToken(tokenRaw);
     if (existing) {
-      const ex = getTeacherExerciseByCode(existing.exercise_id) ?? (await import("@/lib/teacher/store").then((m) => m.getTeacherExerciseById(existing.exercise_id)));
-      // Actually existing.exercise_id is TeacherExercise id, not code
-      const { getTeacherExerciseById } = await import("@/lib/teacher/store");
-      const teacherEx = getTeacherExerciseById(existing.exercise_id);
+      // existing.exercise_id is a TeacherExercise id (not a code)
+      const teacherEx = await getTeacherExerciseById(existing.exercise_id);
       if (!teacherEx) return NextResponse.json({ error: "Exercice non trouvé pour ce token" }, { status: 404 });
-      // Build Exercise view from TeacherExercise (convert to CanonicalExercise shape for toExerciseView)
-      // For MVP, we can directly build a client Exercise from TeacherExercise without Canonical
       const exercise = teacherExerciseToClientExercise(teacherEx);
       return NextResponse.json({ ok: true, resumed: true, studentIdentity: existing, exercise, join_token: existing.join_token });
     }
@@ -45,15 +41,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "display_name requis (1-30 caractères)" }, { status: 400 });
   }
 
-  const teacherEx = getTeacherExerciseByCode(code.trim().toUpperCase());
+  const teacherEx = await getTeacherExerciseByCode(code.trim().toUpperCase());
   if (!teacherEx) {
     return NextResponse.json({ error: "Code invalide ou exercice non trouvé" }, { status: 404 });
   }
 
-  const si = createStudentIdentity(teacherEx.id, nameRaw.trim());
+  const si = await createStudentIdentity(teacherEx.id, nameRaw.trim());
 
-  // Create a server-side Session
-  const session = createSession({
+  // Create a server-side Session pinned to this exercise's version
+  const session = await createSession({
     exerciseId: teacherEx.id,
     canonicalExerciseId: teacherEx.canonical_id ?? teacherEx.id,
     currentCode: "",

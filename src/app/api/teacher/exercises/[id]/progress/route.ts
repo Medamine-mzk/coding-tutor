@@ -10,12 +10,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const auth = requireTeacher(req);
   if ("error" in auth) return auth.error;
   const { id } = await params;
-  const ex = getTeacherExerciseById(id);
+  const ex = await getTeacherExerciseById(id);
   if (!ex) return NextResponse.json({ error: "Exercice non trouvé" }, { status: 404 });
   if (ex.teacher_id !== auth.teacher.id) return NextResponse.json({ error: "Non autorisé" }, { status: 403 });
 
-  const identities = getStudentIdentitiesByExercise(id);
-  const sessions = listSessionsByExercise(id);
+  const identities = await getStudentIdentitiesByExercise(id);
+  const sessions = await listSessionsByExercise(id);
 
   // Roster: display_name, indices révélés (max sur les sessions), last active, status
   const roster = identities.map((si) => {
