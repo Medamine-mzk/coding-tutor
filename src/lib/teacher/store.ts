@@ -1,18 +1,60 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Teacher, TeacherExercise, StudentIdentity } from "./types";
 import type { TestCase } from "../exercise/types";
 
+// In-memory stores for dev (teachers/exercises/identities persist to disk).
+// Auth tokens (magic-link + sessions) are STATELESS HMAC-signed payloads so
+// login works on serverless (Vercel): any instance can verify without shared
+// memory. Requires TEACHER_AUTH_SECRET in production (fail closed without it).
+function authSecret(): string {
+  const s = process.env.TEACHER_AUTH_SECRET;
+  if (s && s.length >= 16) return s;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("TEACHER_AUTH_SECRET manquant (min 16 caractères)");
+  }
+  return "dev-only-insecure-secret";
+}
+
+function b64urlEncode(obj: unknown): string {
+  return Buffer.from(JSON.stringify(obj), "utf-8").toString("base64url");
+}
+
+function b64urlDecode<T>(s: string): T | null {
+  try {
+    return JSON.parse(Buffer.from(s, "base64url").toString("utf-8")) as T;
+  } catch {
+    return null;
+  }
+}
+
+function sign(payload: string): string {
+  return createHmac("sha256", authSecret()).update(payload, "utf-8").digest("base64url");
+}
+
+function verifySigned(token: string): string | null {
+  const dot = token.lastIndexOf(".");
+  if (dot <= 0) return null;
+  const payload = token.slice(0, dot);
+  const sig = token.slice(dot + 1);
+  const expected = sign(payload);
+  const a = Buffer.from(sig, "utf-8");
+  const b = Buffer.from(expected, "utf-8");
+  if (a.length !== b.length) return null;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  if (diff !== 0) return null;
+  return payload;
+}
+
 // In-memory stores — same pattern as canonicalStore / embeddingIndex
-// Persist teachers/sessions to disk for dev (survives HMR/restart), will be replaced by Prisma/Supabase when DATABASE_URL is set.
+// Persist teachers/exercises to disk for dev (survives HMR/restart), will be replaced by Prisma/Supabase when DATABASE_URL is set.
 const DATA_DIR = join(process.cwd(), ".tmp");
 const DATA_FILE = join(DATA_DIR, "teacher-store.json");
 
 const teachers = new Map<string, Teacher>();
 const teacherByEmail = new Map<string, string>(); // email -> teacherId
-const teacherSessions = new Map<string, { teacherId: string; expiresAt: number }>(); // token -> session
-const magicTokens = new Map<string, { email: string; name: string; expiresAt: number }>(); // token -> pending magic link
 
 function loadFromDisk() {
   try {
@@ -21,7 +63,6 @@ function loadFromDisk() {
     const data = JSON.parse(raw) as {
       teachers?: [string, Teacher][];
       teacherByEmail?: [string, string][];
-      teacherSessions?: [string, { teacherId: string; expiresAt: number }][];
       teacherExercises?: [string, TeacherExercise][];
       teacherExercisesByCode?: [string, string][];
       teacherExercisesByTeacher?: [string, string[]][];
@@ -30,7 +71,6 @@ function loadFromDisk() {
     };
     if (data.teachers) for (const [k, v] of data.teachers) teachers.set(k, v);
     if (data.teacherByEmail) for (const [k, v] of data.teacherByEmail) teacherByEmail.set(k, v);
-    if (data.teacherSessions) for (const [k, v] of data.teacherSessions) teacherSessions.set(k, v);
     if (data.teacherExercises) for (const [k, v] of data.teacherExercises) teacherExercises.set(k, v);
     if (data.teacherExercisesByCode) for (const [k, v] of data.teacherExercisesByCode) teacherExercisesByCode.set(k, v);
     if (data.teacherExercisesByTeacher) for (const [k, v] of data.teacherExercisesByTeacher) teacherExercisesByTeacher.set(k, new Set(v));
@@ -45,7 +85,6 @@ function saveToDisk() {
     const data = {
       teachers: [...teachers.entries()],
       teacherByEmail: [...teacherByEmail.entries()],
-      teacherSessions: [...teacherSessions.entries()],
       teacherExercises: [...teacherExercises.entries()],
       teacherExercisesByCode: [...teacherExercisesByCode.entries()],
       teacherExercisesByTeacher: [...teacherExercisesByTeacher.entries()].map(([k, v]) => [k, [...v]] as [string, string[]]),
@@ -82,10 +121,16 @@ export function getTeacherByEmail(email: string): Teacher | undefined {
   return id ? teachers.get(id) : undefined;
 }
 
+export function teacherIdForEmail(email: string): string {
+  // Deterministic id so the same teacher resolves identically on every
+  // serverless instance without shared storage.
+  return `t_${createHash("sha256").update(email.toLowerCase(), "utf-8").digest("hex").slice(0, 12)}`;
+}
+
 export function createTeacher(email: string, name: string): Teacher {
   const existing = getTeacherByEmail(email);
   if (existing) return existing;
-  const id = `t_${randomBytes(6).toString("hex")}`;
+  const id = teacherIdForEmail(email);
   const t: Teacher = { id, name: name.trim() || email.split("@")[0], email: email.toLowerCase(), created_at: new Date().toISOString() };
   teachers.set(id, t);
   teacherByEmail.set(email.toLowerCase(), id);
@@ -93,49 +138,52 @@ export function createTeacher(email: string, name: string): Teacher {
   return t;
 }
 
+type MagicPayload = { email: string; name: string; exp: number };
+
 export function createMagicToken(email: string, name: string): { token: string; expiresAt: number } {
-  const token = randomBytes(24).toString("hex");
   const expiresAt = Date.now() + 15 * 60 * 1000; // 15 min
-  magicTokens.set(token, { email: email.toLowerCase(), name, expiresAt });
-  saveToDisk();
-  return { token, expiresAt };
+  const payload = b64urlEncode({ email: email.toLowerCase(), name, exp: expiresAt } satisfies MagicPayload);
+  return { token: `${payload}.${sign(payload)}`, expiresAt };
 }
 
 export function consumeMagicToken(token: string): { email: string; name: string } | null {
-  const rec = magicTokens.get(token);
-  if (!rec) return null;
-  if (Date.now() > rec.expiresAt) {
-    magicTokens.delete(token);
-    saveToDisk();
-    return null;
-  }
-  magicTokens.delete(token);
-  saveToDisk();
-  return { email: rec.email, name: rec.name };
+  // Stateless: verify signature + expiry. Single-use is not enforced
+  // server-side (no shared store on serverless); the 15-min window bounds replay.
+  const payload = verifySigned(token);
+  if (!payload) return null;
+  const rec = b64urlDecode<MagicPayload>(payload);
+  if (!rec || typeof rec.email !== "string" || typeof rec.exp !== "number") return null;
+  if (Date.now() > rec.exp) return null;
+  return { email: rec.email, name: rec.name ?? "" };
 }
 
-export function createTeacherSession(teacherId: string): { token: string; expiresAt: number } {
-  const token = randomBytes(24).toString("hex");
+type SessionPayload = { id: string; email: string; name: string; created_at: string; exp: number };
+
+export function createTeacherSession(teacher: Teacher): { token: string; expiresAt: number } {
   const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
-  teacherSessions.set(token, { teacherId, expiresAt });
-  saveToDisk();
-  return { token, expiresAt };
+  const payload = b64urlEncode({
+    id: teacher.id,
+    email: teacher.email,
+    name: teacher.name,
+    created_at: teacher.created_at,
+    exp: expiresAt,
+  } satisfies SessionPayload);
+  return { token: `${payload}.${sign(payload)}`, expiresAt };
 }
 
 export function getTeacherBySessionToken(token: string): Teacher | null {
-  const sess = teacherSessions.get(token);
-  if (!sess) return null;
-  if (Date.now() > sess.expiresAt) {
-    teacherSessions.delete(token);
-    saveToDisk();
-    return null;
-  }
-  return teachers.get(sess.teacherId) ?? null;
+  // Self-contained: the teacher identity travels inside the signed session,
+  // so any serverless instance can validate without shared memory.
+  const payload = verifySigned(token);
+  if (!payload) return null;
+  const rec = b64urlDecode<SessionPayload>(payload);
+  if (!rec || typeof rec.id !== "string" || typeof rec.email !== "string") return null;
+  if (Date.now() > rec.exp) return null;
+  return { id: rec.id, email: rec.email, name: rec.name ?? "", created_at: rec.created_at ?? new Date().toISOString() };
 }
 
-export function deleteTeacherSession(token: string) {
-  teacherSessions.delete(token);
-  saveToDisk();
+export function deleteTeacherSession(_token: string) {
+  // No-op: sessions are stateless — logout clears the cookie client-side.
 }
 
 // --- TeacherExercise ---
@@ -264,8 +312,6 @@ export function getStudentIdentitiesByExercise(exerciseId: string): StudentIdent
 export function clearTeacherStores() {
   teachers.clear();
   teacherByEmail.clear();
-  teacherSessions.clear();
-  magicTokens.clear();
   teacherExercises.clear();
   teacherExercisesByCode.clear();
   teacherExercisesByTeacher.clear();

@@ -37,13 +37,14 @@ export async function POST(req: NextRequest) {
   // In production you would send an email via Resend/Supabase. For MVP, log and return token for dev.
   console.log(`[teacher magic-link] ${email} -> ${verifyUrl} (expires ${new Date(expiresAt).toISOString()})`);
 
-  const isDev = process.env.NODE_ENV !== "production";
+  // MVP: no email service yet, so the token is returned for dev-style
+  // auto-verify in every environment (magic link stays 15-min, single-flow).
   return NextResponse.json(
     {
       ok: true,
-      // Do not expose token in production; dev only for testing without email
-      ...(isDev ? { tokenForDev: token, verifyUrl } : {}),
-      message: isDev ? "Lien magique généré (voir logs serveur). En prod, il serait envoyé par email." : "Lien magique envoyé par email (si l'adresse existe).",
+      tokenForDev: token,
+      verifyUrl,
+      message: "Lien magique généré (voir logs serveur). En prod, il serait envoyé par email.",
     },
     { headers }
   );
