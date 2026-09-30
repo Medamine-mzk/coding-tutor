@@ -30,6 +30,9 @@ export type TeacherExercise = {
   visibility: "code_only" | "public_library";
   created_via: "manual" | "upload" | "llm_assisted";
   reference_verified: boolean;
+  /** How the reference was verified: real local/remote execution, LLM mental
+   * execution, or null when never/unverifiably checked. Shown as a badge. */
+  verification_method?: "local" | "remote" | "llm_dryrun" | null;
   reference_solution?: string | null; // server-only, optional
   commented_reference?: string | null; // auto-generated FR comments (server-only)
   canonical_id?: string | null; // link to CanonicalExercise if LLM-assisted

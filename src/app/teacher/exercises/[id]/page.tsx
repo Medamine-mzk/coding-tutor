@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { parseCommentedReference, getHintText } from "@/lib/tutor/commentHints";
+import { verificationLabel } from "@/lib/teacher/verificationBadge";
 
 const LEVEL_LABELS: Record<number, string> = {
   1: "1 — Commentaire",
@@ -138,6 +139,7 @@ export default function TeacherExerciseDetailPage() {
   const title = (ex as { title: string }).title;
   const visibility = (ex as { visibility: string }).visibility;
   const verified = (ex as { reference_verified: boolean }).reference_verified;
+  const verificationMethod = (ex as { verification_method?: string | null }).verification_method ?? null;
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
@@ -146,7 +148,7 @@ export default function TeacherExerciseDetailPage() {
       </Link>
       <h1 className="mt-4 text-2xl font-bold">{title}</h1>
       <p className="mt-1 font-mono text-sm">
-        Code: <span className="rounded bg-emerald-100 px-2 py-0.5 font-bold text-emerald-700">{code}</span> · {visibility} · {verified ? "✓ vérifié" : "⚠ non vérifié"}
+        Code: <span className="rounded bg-emerald-100 px-2 py-0.5 font-bold text-emerald-700">{code}</span> · {visibility} · {verificationLabel(verified, verificationMethod)}
       </p>
       {msg ? <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">{msg}</p> : null}
       <div className="mt-6 flex flex-wrap gap-2">

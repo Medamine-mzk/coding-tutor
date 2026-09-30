@@ -91,6 +91,28 @@ npm run lint && npm run typecheck && npm test && npm run build
 # Anti-leak: ≥50 adversarial prompts (Ticket 06 CI suite)
 ```
 
+## Deployment & reference verification chain
+
+Production: Vercel (`vercel --prod`). Vercel serverless has no Python, so teacher
+publish uses a graceful fallback chain (teacher code only, never student code):
+
+1. **`local`** — local `python` (dev, VPS): real execution, example by example.
+2. **`remote`** — public [Wandbox](https://wandbox.org) API (free, no key): examples run
+   in parallel. Skipped when the reference imports `numpy`/`pandas`/… (absent from free
+   sandboxes); disable with `REMOTE_EXEC=0`.
+3. **`llm_dryrun`** — the LLM "mentally executes" the reference and predicts outputs;
+   the server compares them itself (the model never renders the verdict). Honest badge:
+   *"✓ vérifié (IA — à confirmer)"*.
+
+If everything fails: honest message + `reference_verified:false` — the teacher's
+solution is never wrongly blamed. The method persists (`verification_method`, migration
+`0002`) and shows as a badge on the dashboard.
+
+> Why not Piston/JDoodle/Judge0? Piston public requires a token since Feb 2026;
+> JDoodle/Judge0/Glot require account + key. Wandbox is the only frictionless free
+> execution; the LLM dry-run (existing keys) covers numpy. See `.env.example`
+> (`REMOTE_EXEC`, `WANDBOX_URL`, `WANDBOX_COMPILER`).
+
 ## Skills install (for contributors using Claude Code / Codex)
 
 Claude Code plugin: `claude plugins install mattpocock-skills` or `/plugin install mattpocock-skills` (official marketplace `claude-plugins-official`).

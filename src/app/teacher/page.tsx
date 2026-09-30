@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { verificationLabel } from "@/lib/teacher/verificationBadge";
 
 type TeacherExercise = {
   id: string;
@@ -9,6 +10,7 @@ type TeacherExercise = {
   title: string;
   visibility: string;
   reference_verified: boolean;
+  verification_method?: string | null;
   created_at: string;
 };
 
@@ -76,7 +78,7 @@ export default function TeacherDashboard() {
                 <div className="flex items-start justify-between gap-3">
                   <h3 className="line-clamp-1 font-semibold leading-tight">{ex.title}</h3>
                   <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ${ex.reference_verified ? "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-300" : "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950 dark:text-amber-300"}`}>
-                    {ex.reference_verified ? "✓ vérifié" : "⚠ à vérifier"}
+                    {verificationLabel(ex.reference_verified, ex.verification_method)}
                   </span>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">

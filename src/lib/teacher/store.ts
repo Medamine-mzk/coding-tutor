@@ -216,7 +216,7 @@ type ExerciseRow = {
   id: string; teacher_id: string; code: string; title: string; statement: string;
   language: string; concepts: unknown; difficulty: number; io_spec: string;
   constraints: unknown; examples: unknown; hidden_tests: unknown; visible_tests: unknown;
-  visibility: string; created_via: string; reference_verified: boolean;
+  visibility: string; created_via: string; reference_verified: boolean; verification_method?: string | null;
   reference_solution: string | null; commented_reference: string | null; canonical_id: string | null;
   created_at: string; updated_at: string;
 };
@@ -239,6 +239,7 @@ function rowToTeacherExercise(r: ExerciseRow): TeacherExercise {
     visibility: (r.visibility ?? "code_only") as TeacherExercise["visibility"],
     created_via: (r.created_via ?? "manual") as TeacherExercise["created_via"],
     reference_verified: !!r.reference_verified,
+    verification_method: (r.verification_method === "local" || r.verification_method === "remote" || r.verification_method === "llm_dryrun") ? r.verification_method : null,
     reference_solution: r.reference_solution ?? null,
     commented_reference: r.commented_reference ?? null,
     canonical_id: r.canonical_id ?? null,
@@ -281,6 +282,7 @@ export async function createTeacherExercise(data: Partial<Omit<TeacherExercise, 
     visibility: data.visibility ?? "code_only",
     created_via: data.created_via,
     reference_verified: data.reference_verified ?? false,
+    ...(data.verification_method ? { verification_method: data.verification_method } : {}),
     reference_solution: data.reference_solution ?? null,
     commented_reference: data.commented_reference ?? null,
     canonical_id: data.canonical_id ?? null,
