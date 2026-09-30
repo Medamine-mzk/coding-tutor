@@ -1,6 +1,8 @@
 -- PyMentor initial schema — run once in Supabase SQL editor.
 -- Auth tokens are stateless HMAC (no session table needed).
--- Service-role key bypasses RLS, so no policies are required for MVP.
+-- RLS is enabled with NO policies (deny-by-default): the public/anon key can
+-- read and write nothing. All server access uses the service_role key, which
+-- bypasses RLS. Student display names stay private.
 
 create table if not exists teachers (
   id text primary key,
@@ -58,3 +60,10 @@ create table if not exists sessions (
 );
 create index if not exists idx_sessions_exercise on sessions(exercise_id);
 create index if not exists idx_sessions_identity on sessions(student_identity_id);
+
+-- Lockdown: RLS on, no policies = deny all for anon/authenticated roles.
+-- The app's service_role key bypasses RLS.
+alter table teachers enable row level security;
+alter table teacher_exercises enable row level security;
+alter table student_identities enable row level security;
+alter table sessions enable row level security;
