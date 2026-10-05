@@ -59,3 +59,4 @@ step-plan-and-exercise-cache-addendum.md
 .tmp/
 
 .vercel
+.env*
