@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { I18nProvider } from "@/lib/i18n";
-import { WorkspaceClient, hasInputPromptLine } from "@/components/WorkspaceClient";
+import { WorkspaceClient } from "@/components/WorkspaceClient";
+import { ONBOARDING_SEEN_KEY } from "@/components/OnboardingTour";
 import type { Exercise } from "@/lib/exercise/types";
 
 vi.mock("next/navigation", () => ({
@@ -165,12 +166,37 @@ describe("WorkspaceClient — IDE + runner", () => {
     expect(btn).toHaveAttribute("title");
   });
 
-  it("hasInputPromptLine detects input() with prompt text, ignores comments", () => {
-    expect(hasInputPromptLine('s = input("donner une chaine")')).toBe(true);
-    expect(hasInputPromptLine("s = input('x')")).toBe(true);
-    expect(hasInputPromptLine("n = int(input())")).toBe(false);
-    expect(hasInputPromptLine("# input(\"texte\")")).toBe(false);
-    expect(hasInputPromptLine("print(input())")).toBe(false);
+  it("onboarding tour shows on first visit, skips when seen, replays via ? button", async () => {
+    localStorage.setItem("locale", "fr");
+    localStorage.removeItem(ONBOARDING_SEEN_KEY);
+    setExerciseInStorage({});
+    const { unmount } = render(
+      <I18nProvider>
+        <WorkspaceClient />
+      </I18nProvider>
+    );
+    // Apparaît après un court délai (première visite)
+    expect(await screen.findByTestId("onboarding-tour", {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.getByTestId("onboarding-next")).toBeInTheDocument();
+    // Passer ferme et mémorise
+    fireEvent.click(screen.getByTestId("onboarding-skip"));
+    await waitFor(() => expect(screen.queryByTestId("onboarding-tour")).not.toBeInTheDocument());
+    expect(localStorage.getItem(ONBOARDING_SEEN_KEY)).toBe("1");
+    unmount();
+
+    // Déjà vu → pas de tour auto
+    render(
+      <I18nProvider>
+        <WorkspaceClient />
+      </I18nProvider>
+    );
+    await waitFor(() => expect(screen.queryByTestId("onboarding-tour")).not.toBeInTheDocument(), { timeout: 2000 });
+    // Replay via le bouton ?
+    fireEvent.click(screen.getByTestId("onboarding-replay"));
+    expect(await screen.findByTestId("onboarding-tour")).toBeInTheDocument();
+    // Suivant avance (compteur 2/6)
+    fireEvent.click(screen.getByTestId("onboarding-next"));
+    await waitFor(() => expect(screen.getByText(/2\/6/)).toBeInTheDocument());
   });
 
   it("shows TestRunner with visible diff and hidden category-only, and Completion when all pass", async () => {

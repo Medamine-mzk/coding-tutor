@@ -81,7 +81,25 @@
     "consoleEmpty": "Rien pour l'instant. Écris ton code puis ▶ Exécuter.",
     "consoleAwaiting": "⏳ Ton programme attend une valeur — tape-la ci-dessous puis Entrée :",
     "consoleTypeInput": "Tape ta valeur puis Entrée…",
-    "consoleSend": "Envoyer",
-    "inputPromptWarning": "💡 Au BAC, on écrit input() sans texte entre parenthèses — enlève le texte, sinon les tests échoueront."
+    "consoleSend": "Envoyer"
+  },
+  "onboarding": {
+    "title": "Visite guidée",
+    "step1Title": "✍️ Écris ton code ici",
+    "step1Body": "C'est ton éditeur Python : coloration, indentation automatique. Écris ligne par ligne, sans stress.",
+    "step2Title": "▶ Exécuter : lance ton programme",
+    "step2Body": "Le bouton vert lance TON code avec les données du clavier simulé ci-dessous. ■ Arrêter coupe un programme qui tourne en rond.",
+    "step3Title": "⌨️ Clavier simulé : tes données de test",
+    "step3Body": "Écris ici ce que tu taperais au clavier — chaque input() lit la ligne suivante. Astuce : 📋 Remplir avec l'exemple fait tout pour toi !",
+    "step4Title": "🖥️ Console : ce que ton programme affiche",
+    "step4Body": "Sorties en vert, erreurs en rouge expliquées simplement. Si ton programme attend une valeur, un champ apparaît ici.",
+    "step5Title": "✓ Vérifier : comme le prof",
+    "step5Body": "Compare ton programme aux exemples de l'énoncé. Tout vert = exercice réussi, direction le tableau de progression !",
+    "step6Title": "💡 Bloqué ? Demande un indice",
+    "step6Body": "Le bouton jaune révèle un indice progressif en 5 niveaux — une question d'abord, jamais la solution. L'effort est récompensé !",
+    "next": "Suivant →",
+    "skip": "Passer ✕",
+    "finish": "C'est parti ! 🚀",
+    "replay": "Revoir la visite"
   }
 }

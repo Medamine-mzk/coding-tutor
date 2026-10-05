@@ -14,6 +14,7 @@ import { generateSkeleton } from "@/lib/exercise/skeleton";
 import { buildExerciseFromHeuristics } from "@/lib/exercise/parser";
 import { formatStatementBody } from "@/lib/exercise/formatStatement";
 import { hintToCommentBlock } from "@/lib/tutor/insertComment";
+import { OnboardingTour, ONBOARDING_SEEN_KEY } from "./OnboardingTour";
 
 const DEFAULT_CODE = `# Exemple - écris ton code ici
 `;
@@ -24,13 +25,7 @@ function isDefaultCode(code: string): boolean {
   return code === DEFAULT_CODE;
 }
 
-/**
- * L'élève a écrit input("texte") avec un prompt ? Au BAC c'est input() vide.
- * Hors commentaires uniquement (un # input("x") ne compte pas).
- */
-export function hasInputPromptLine(code: string): boolean {
-  return code.split("\n").some((l) => !l.trim().startsWith("#") && /input\s*\(\s*["']/.test(l));
-}
+
 
 export function WorkspaceClient() {
   const { t } = useI18n();
@@ -57,6 +52,16 @@ export function WorkspaceClient() {
   const [hintsLoading, setHintsLoading] = useState(false);
   const [hintsNote, setHintsNote] = useState<string | null>(null);
   const [joinToken, setJoinToken] = useState<string | null>(null);
+  // Visite guidée : première visite uniquement (rejouable via le bouton ?).
+  const [showTour, setShowTour] = useState(false);
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem(ONBOARDING_SEEN_KEY)) {
+        const t = setTimeout(() => setShowTour(true), 800);
+        return () => clearTimeout(t);
+      }
+    } catch {}
+  }, []);
   const hasRunRef = useRef(false);
   const editorRef = useRef<EditorHandle | null>(null);
   // Garde partagée avec TutorChat : un commentaire inséré n'est pas une
@@ -241,9 +246,7 @@ export function WorkspaceClient() {
   );
   const panelExamples = loadedExercise?.examples ?? [];
   const panelConstraints = loadedExercise?.constraints ?? [];
-  // L'élève a écrit input("texte") ? Au BAC c'est input() vide — on le signale
-  // doucement (hors commentaires) au lieu de laisser les tests échouer.
-  const hasInputPrompt = useMemo(() => hasInputPromptLine(code), [code]);
+
 
   const isCompleted = !!(testReport && testReport.total > 0 && testReport.passed === testReport.total);
 
@@ -325,6 +328,7 @@ export function WorkspaceClient() {
 
   return (
     <div className="flex flex-1 flex-col">
+      {showTour ? <OnboardingTour onTab={setActiveTab} onDone={() => setShowTour(false)} /> : null}
       <div className="flex border-b border-black/10 bg-white dark:border-white/10 dark:bg-zinc-950 lg:hidden">
         {([
           ["exercise", t("workspace.exercise")],
@@ -436,6 +440,15 @@ export function WorkspaceClient() {
               </button>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowTour(true)}
+                data-testid="onboarding-replay"
+                title={t("onboarding.replay")}
+                aria-label={t("onboarding.replay")}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-black/10 text-sm hover:bg-zinc-50 dark:border-white/15 dark:hover:bg-zinc-800"
+              >
+                ?
+              </button>
               <label className="text-xs text-zinc-600 dark:text-zinc-400">Font</label>
               <button onClick={() => setFontSize((s) => Math.max(10, s - 1))} className="h-8 w-8 rounded-full border border-black/10 dark:border-white/15">-</button>
               <span className="w-8 text-center text-sm">{fontSize}</span>
@@ -453,11 +466,6 @@ export function WorkspaceClient() {
             <Editor ref={editorRef} value={code} onChange={setCode} onLargePaste={handleLargePaste} theme={theme} fontSize={fontSize} placeholder={t("landing.pastePlaceholder")} />
           </div>
 
-          {hasInputPrompt ? (
-            <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200" role="status">
-              {t("workspace.inputPromptWarning")}
-            </div>
-          ) : null}
           <div className="grid gap-3 lg:grid-cols-[220px_1fr]">
             <div className="rounded-xl border border-black/10 bg-white p-3 dark:border-white/10 dark:bg-zinc-900">
               <label htmlFor="stdin" className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{t("workspace.stdinTitle")}</label>

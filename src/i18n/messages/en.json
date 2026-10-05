@@ -81,7 +81,25 @@
     "consoleEmpty": "Nothing yet. Write your code then ▶ Run.",
     "consoleAwaiting": "⏳ Your program is waiting for a value — type it below then Enter:",
     "consoleTypeInput": "Type your value then Enter…",
-    "consoleSend": "Send",
-    "inputPromptWarning": "💡 In BAC style, write input() with nothing between the parentheses — remove the text or tests will fail."
+    "consoleSend": "Send"
+  },
+  "onboarding": {
+    "title": "Guided tour",
+    "step1Title": "✍️ Write your code here",
+    "step1Body": "This is your Python editor: highlighting, auto-indent. Write line by line, no stress.",
+    "step2Title": "▶ Run: launch your program",
+    "step2Body": "The green button runs YOUR code with the simulated keyboard data below. ■ Stop kills a looping program.",
+    "step3Title": "⌨️ Simulated keyboard: your test data",
+    "step3Body": "Type here what you would type on the keyboard — each input() reads the next line. Tip: 📋 Fill with example does it all for you!",
+    "step4Title": "🖥️ Console: what your program prints",
+    "step4Body": "Outputs in green, errors in red with a plain explanation. If your program waits for a value, a field appears here.",
+    "step5Title": "✓ Check: like the teacher",
+    "step5Body": "Compare your program against the exercise examples. All green = exercise done!",
+    "step6Title": "💡 Stuck? Ask for a hint",
+    "step6Body": "The yellow button reveals a 5-level progressive hint — a question first, never the solution!",
+    "next": "Next →",
+    "skip": "Skip ✕",
+    "finish": "Let's go! 🚀",
+    "replay": "Replay tour"
   }
 }
