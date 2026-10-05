@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useI18n } from "@/lib/i18n";
 
 type ConsoleProps = {
   stdout: string;
@@ -11,6 +12,7 @@ type ConsoleProps = {
 };
 
 export function Console({ stdout, stderr, awaitingInput, inputPrompt, onSubmitInput }: ConsoleProps) {
+  const { t } = useI18n();
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -39,23 +41,26 @@ export function Console({ stdout, stderr, awaitingInput, inputPrompt, onSubmitIn
           <pre className="whitespace-pre-wrap break-words text-red-400" data-testid="console-stderr">{stderr}</pre>
         ) : null}
         {!stdout && !stderr && !awaitingInput ? (
-          <span className="text-zinc-600">No output yet. Press Run.</span>
+          <span className="text-zinc-600">{t("workspace.consoleEmpty")}</span>
         ) : null}
         {awaitingInput ? (
-          <form onSubmit={handleSubmit} className="mt-3 flex items-center gap-2">
-            <span className="shrink-0 text-amber-300">{inputPrompt ?? "input():"}</span>
-            <input
-              autoFocus
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Type input and press Enter"
-              className="flex-1 rounded border border-white/20 bg-zinc-900 px-2 py-1 text-sm text-white placeholder:text-zinc-400 focus:border-white/40 focus:outline-none"
-              data-testid="console-input"
-            />
-            <button type="submit" className="rounded bg-white px-3 py-1 text-xs font-medium text-zinc-900 hover:bg-zinc-100">
-              Send
-            </button>
-          </form>
+          <div className="mt-3 rounded-lg border border-amber-400/40 bg-amber-400/10 p-2">
+            <p className="text-xs font-medium text-amber-300">{t("workspace.consoleAwaiting")}</p>
+            <form onSubmit={handleSubmit} className="mt-2 flex items-center gap-2">
+              <span className="shrink-0 text-amber-300">{inputPrompt ?? "input():"}</span>
+              <input
+                autoFocus
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={t("workspace.consoleTypeInput")}
+                className="flex-1 rounded border border-white/20 bg-zinc-900 px-2 py-1 text-sm text-white placeholder:text-zinc-400 focus:border-white/40 focus:outline-none"
+                data-testid="console-input"
+              />
+              <button type="submit" className="rounded bg-white px-3 py-1 text-xs font-medium text-zinc-900 hover:bg-zinc-100">
+                {t("workspace.consoleSend")}
+              </button>
+            </form>
+          </div>
         ) : null}
       </div>
     </div>

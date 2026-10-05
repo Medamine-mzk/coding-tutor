@@ -24,6 +24,14 @@ function isDefaultCode(code: string): boolean {
   return code === DEFAULT_CODE;
 }
 
+/**
+ * L'élève a écrit input("texte") avec un prompt ? Au BAC c'est input() vide.
+ * Hors commentaires uniquement (un # input("x") ne compte pas).
+ */
+export function hasInputPromptLine(code: string): boolean {
+  return code.split("\n").some((l) => !l.trim().startsWith("#") && /input\s*\(\s*["']/.test(l));
+}
+
 export function WorkspaceClient() {
   const { t } = useI18n();
   const router = useRouter();
@@ -233,6 +241,9 @@ export function WorkspaceClient() {
   );
   const panelExamples = loadedExercise?.examples ?? [];
   const panelConstraints = loadedExercise?.constraints ?? [];
+  // L'élève a écrit input("texte") ? Au BAC c'est input() vide — on le signale
+  // doucement (hors commentaires) au lieu de laisser les tests échouer.
+  const hasInputPrompt = useMemo(() => hasInputPromptLine(code), [code]);
 
   const isCompleted = !!(testReport && testReport.total > 0 && testReport.passed === testReport.total);
 
@@ -414,14 +425,14 @@ export function WorkspaceClient() {
         <div role="region" aria-label={`${t("workspace.editor")} & ${t("workspace.console")}`} className={`${activeTab !== "editor" ? "hidden lg:flex" : "flex"} flex flex-col gap-3`}>
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-black/10 bg-white p-3 dark:border-white/10 dark:bg-zinc-900">
             <div className="flex items-center gap-2">
-              <button onClick={handleRun} disabled={running} data-testid="run-btn" className="inline-flex h-9 items-center gap-2 rounded-full bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400 dark:disabled:bg-zinc-700">
+              <button onClick={handleRun} disabled={running} data-testid="run-btn" title={t("workspace.runTitle")} className="inline-flex h-9 items-center gap-2 rounded-full bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400 dark:disabled:bg-zinc-700">
                 <span aria-hidden>▶</span> {t("workspace.run")}
               </button>
               <button onClick={handleStop} disabled={!running} data-testid="stop-btn" className="inline-flex h-9 items-center gap-2 rounded-full border border-black/10 bg-white px-4 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50 dark:border-white/15 dark:bg-zinc-800 dark:hover:bg-zinc-700">
                 ■ {t("workspace.stop")}
               </button>
-              <button onClick={handleRunTests} disabled={running} className="hidden h-9 items-center rounded-full border border-black/10 bg-white px-4 text-sm sm:inline-flex dark:border-white/15 dark:bg-zinc-800">
-                Tests
+              <button onClick={handleRunTests} disabled={running} data-testid="tests-btn" title={t("workspace.testsTitle")} className="inline-flex h-9 items-center rounded-full border border-black/10 bg-white px-4 text-sm font-medium hover:bg-zinc-50 dark:border-white/15 dark:bg-zinc-800 dark:hover:bg-zinc-700">
+                {t("workspace.verify")}
               </button>
             </div>
             <div className="flex items-center gap-2">
@@ -442,9 +453,15 @@ export function WorkspaceClient() {
             <Editor ref={editorRef} value={code} onChange={setCode} onLargePaste={handleLargePaste} theme={theme} fontSize={fontSize} placeholder={t("landing.pastePlaceholder")} />
           </div>
 
+          {hasInputPrompt ? (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200" role="status">
+              {t("workspace.inputPromptWarning")}
+            </div>
+          ) : null}
           <div className="grid gap-3 lg:grid-cols-[220px_1fr]">
             <div className="rounded-xl border border-black/10 bg-white p-3 dark:border-white/10 dark:bg-zinc-900">
-              <label htmlFor="stdin" className="text-xs font-medium text-zinc-700 dark:text-zinc-300">stdin (une valeur par ligne pour input())</label>
+              <label htmlFor="stdin" className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{t("workspace.stdinTitle")}</label>
+              <p className="mt-1 text-xs leading-4 text-zinc-600 dark:text-zinc-400">{t("workspace.stdinHelp")}</p>
               <textarea
                 id="stdin"
                 value={stdinInput}
@@ -454,7 +471,18 @@ export function WorkspaceClient() {
                 className="mt-2 w-full rounded-lg border border-black/10 bg-zinc-50 p-2 font-mono text-sm dark:border-white/10 dark:bg-zinc-800"
                 data-testid="stdin-input"
               />
-              <p className="mt-1 text-xs text-zinc-600">Exemple : 2 lignes pour deux appels à input()</p>
+              {panelExamples.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setStdinInput(panelExamples[0].input)}
+                  className="mt-2 w-full rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                  data-testid="stdin-fill-example"
+                >
+                  📋 {t("workspace.stdinFillExample")}
+                </button>
+              ) : (
+                <p className="mt-1 text-xs text-zinc-500">{t("workspace.stdinNoExample")}</p>
+              )}
             </div>
             <Console
               stdout={status?.stdout ?? ""}

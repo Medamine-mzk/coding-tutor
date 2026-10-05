@@ -71,7 +71,11 @@ describe("a11y — landmarks and labels", () => {
   it("Console has log role and aria-live", async () => {
     const { Console } = await import("@/components/Console");
     const { render: r } = await import("@testing-library/react");
-    const { container } = r(<Console stdout="hello" stderr="" />);
+    const { container } = r(
+      <I18nProvider>
+        <Console stdout="hello" stderr="" />
+      </I18nProvider>
+    );
     expect(container.querySelector('[role="log"]')).toBeTruthy();
     expect(container.querySelector('[aria-live="polite"]')).toBeTruthy();
   });

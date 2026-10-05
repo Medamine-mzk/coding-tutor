@@ -67,9 +67,21 @@
     "run": "Exécuter",
     "stop": "Arrêter",
     "tests": "Tests",
+    "verify": "✓ Vérifier",
+    "runTitle": "Lance TON programme avec les données du clavier simulé ci-dessous",
+    "testsTitle": "Vérifie ton programme avec les exemples de l'énoncé (comme le prof)",
     "hint": "Indice",
     "stuck": "Je suis bloqué",
     "explainError": "Expliquer l'erreur",
-    "checkApproach": "Vérifier mon approche"
+    "checkApproach": "Vérifier mon approche",
+    "stdinTitle": "⌨️ Clavier simulé — tes données de test",
+    "stdinHelp": "Écris ici ce que tu taperais au clavier. Chaque input() lit la ligne suivante.",
+    "stdinFillExample": "Remplir avec l'exemple",
+    "stdinNoExample": "Pas d'exemple disponible",
+    "consoleEmpty": "Rien pour l'instant. Écris ton code puis ▶ Exécuter.",
+    "consoleAwaiting": "⏳ Ton programme attend une valeur — tape-la ci-dessous puis Entrée :",
+    "consoleTypeInput": "Tape ta valeur puis Entrée…",
+    "consoleSend": "Envoyer",
+    "inputPromptWarning": "💡 Au BAC, on écrit input() sans texte entre parenthèses — enlève le texte, sinon les tests échoueront."
   }
 }

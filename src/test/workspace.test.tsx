@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { I18nProvider } from "@/lib/i18n";
-import { WorkspaceClient } from "@/components/WorkspaceClient";
+import { WorkspaceClient, hasInputPromptLine } from "@/components/WorkspaceClient";
 import type { Exercise } from "@/lib/exercise/types";
 
 vi.mock("next/navigation", () => ({
@@ -138,6 +138,41 @@ describe("WorkspaceClient — IDE + runner", () => {
     localStorage.removeItem("student_join_token");
   });
 
+  it("stdin fill-example button fills stdin with the statement example", async () => {
+    localStorage.setItem("locale", "fr");
+    setExerciseInStorage({});
+    render(
+      <I18nProvider>
+        <WorkspaceClient />
+      </I18nProvider>
+    );
+    const fillBtn = await screen.findByTestId("stdin-fill-example");
+    fireEvent.click(fillBtn);
+    const stdin = screen.getByTestId("stdin-input") as HTMLTextAreaElement;
+    expect(stdin.value).toBe("2 3");
+  });
+
+  it("verify button is always visible (no mobile hiding)", () => {
+    localStorage.setItem("locale", "fr");
+    setExerciseInStorage({});
+    render(
+      <I18nProvider>
+        <WorkspaceClient />
+      </I18nProvider>
+    );
+    const btn = screen.getByTestId("tests-btn");
+    expect(btn).toBeVisible();
+    expect(btn).toHaveAttribute("title");
+  });
+
+  it("hasInputPromptLine detects input() with prompt text, ignores comments", () => {
+    expect(hasInputPromptLine('s = input("donner une chaine")')).toBe(true);
+    expect(hasInputPromptLine("s = input('x')")).toBe(true);
+    expect(hasInputPromptLine("n = int(input())")).toBe(false);
+    expect(hasInputPromptLine("# input(\"texte\")")).toBe(false);
+    expect(hasInputPromptLine("print(input())")).toBe(false);
+  });
+
   it("shows TestRunner with visible diff and hidden category-only, and Completion when all pass", async () => {
     localStorage.setItem("locale", "fr");
     setExerciseInStorage({});
@@ -146,7 +181,7 @@ describe("WorkspaceClient — IDE + runner", () => {
         <WorkspaceClient />
       </I18nProvider>
     );
-    const testsBtn = screen.getByText("Tests");
+    const testsBtn = screen.getByTestId("tests-btn");
     fireEvent.click(testsBtn);
     await waitFor(() => expect(screen.getByTestId("test-runner")).toBeInTheDocument());
     await waitFor(() => expect(screen.getByTestId("test-summary")).toBeInTheDocument());

@@ -67,9 +67,21 @@
     "run": "Run",
     "stop": "Stop",
     "tests": "Tests",
+    "verify": "✓ Check",
+    "runTitle": "Run YOUR program with the simulated keyboard data below",
+    "testsTitle": "Check your program against the exercise examples (like the teacher)",
     "hint": "Hint",
     "stuck": "I'm stuck",
     "explainError": "Explain error",
-    "checkApproach": "Check my approach"
+    "checkApproach": "Check my approach",
+    "stdinTitle": "⌨️ Simulated keyboard — your test data",
+    "stdinHelp": "Type here what you would type on the keyboard. Each input() reads the next line.",
+    "stdinFillExample": "Fill with example",
+    "stdinNoExample": "No example available",
+    "consoleEmpty": "Nothing yet. Write your code then ▶ Run.",
+    "consoleAwaiting": "⏳ Your program is waiting for a value — type it below then Enter:",
+    "consoleTypeInput": "Type your value then Enter…",
+    "consoleSend": "Send",
+    "inputPromptWarning": "💡 In BAC style, write input() with nothing between the parentheses — remove the text or tests will fail."
   }
 }
