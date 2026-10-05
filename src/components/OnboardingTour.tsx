@@ -43,6 +43,8 @@ export function OnboardingTour({ onTab, onDone }: { onTab: (tab: Step["tab"]) =>
   }, []);
 
   // Positionne le spotlight sur la cible (saute les étapes sans cible visible).
+  // Scroll instantané + mesure synchrone : le rectangle est toujours exact,
+  // jamais dessiné à l'ancienne position (pas de timeout, pas de "nearest").
   useLayoutEffect(() => {
     let idx = step;
     onTab(STEPS[idx].tab);
@@ -56,18 +58,18 @@ export function OnboardingTour({ onTab, onDone }: { onTab: (tab: Step["tab"]) =>
       onDone();
       return;
     }
-    if (idx !== step) setStep(idx);
+    if (idx !== step) {
+      setStep(idx);
+      return;
+    }
     const el = document.querySelector(`[data-testid="${STEPS[idx].target}"]`) as HTMLElement | null;
     try {
-      el?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+      // Centre toujours la cible (pas seulement si invisible) ; instantané
+      // pour que la mesure suivante soit synchrone et exacte.
+      el?.scrollIntoView?.({ block: "center", behavior: "instant" });
     } catch {}
-    // Mesure après le scroll (la position a pu bouger).
-    const t1 = setTimeout(() => {
-      const r2 = measure(STEPS[idx].target);
-      if (r2) setRect(r2);
-    }, 350);
-    setRect(r);
-    return () => clearTimeout(t1);
+    const r2 = measure(STEPS[idx].target);
+    setRect(r2);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
@@ -93,10 +95,18 @@ export function OnboardingTour({ onTab, onDone }: { onTab: (tab: Step["tab"]) =>
   };
 
   const isLast = step === STEPS.length - 1;
-  // Tooltip sous la cible si la place le permet, sinon au-dessus.
-  const below = rect ? rect.top + rect.height + 190 < window.innerHeight : false;
-  const tipTop = rect ? (below ? rect.top + rect.height + 12 : Math.max(12, rect.top - 202)) : 80;
-  const tipLeft = rect ? Math.max(12, Math.min(rect.left, window.innerWidth - 332)) : 12;
+  // Tooltip toujours dans l'écran : sous la cible si elle est dans le haut,
+  // au-dessus si elle est dans le bas (clampé des deux côtés).
+  const TIP_H = 210;
+  const TIP_W = 320;
+  const targetCenter = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
+  const below = targetCenter < window.innerHeight * 0.55;
+  const tipTop = rect
+    ? below
+      ? Math.min(rect.top + rect.height + 12, window.innerHeight - TIP_H - 12)
+      : Math.max(12, rect.top - TIP_H - 12)
+    : 80;
+  const tipLeft = rect ? Math.max(12, Math.min(rect.left, window.innerWidth - TIP_W - 12)) : 12;
 
   return (
     <div className="fixed inset-0 z-50" data-testid="onboarding-tour" role="dialog" aria-modal="true" aria-label={t("onboarding.title")}>
