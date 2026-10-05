@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getTeacherExerciseById, getStudentIdentityByToken, updateTeacherExercise } from "@/lib/teacher/store";
 import { createSession, listSessionsByExercise, updateSession } from "@/lib/session/store";
 import { addComments } from "@/lib/teacher/addComments";
-import { parseCommentedReference, getHintText } from "@/lib/tutor/commentHints";
+import { parseCommentedReference, getHintText, codeLineExistsInStudentCode } from "@/lib/tutor/commentHints";
 
 // POST /api/student/hints — progressive comment-based hint reveal.
-// Body: { join_token: string; hasRun?: boolean }
+// Body: { join_token: string; hasRun?: boolean; code?: string }
 // Server holds the commented reference and tracks revealed pairs per session,
 // so devtools cannot fetch the full solution (levels 4-5 need hasRun=true).
+// Smart skip: if the student's code already contains the target line, the pair
+// is marked done and the server auto-advances (no rewriting what's written).
 export async function POST(req: NextRequest) {
   let body: unknown;
   try {
@@ -15,11 +17,12 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
   }
-  const { join_token, joinToken, hasRun } = body as { join_token?: string; joinToken?: string; hasRun?: boolean };
+  const { join_token, joinToken, hasRun, code } = body as { join_token?: string; joinToken?: string; hasRun?: boolean; code?: string };
   const token = join_token ?? joinToken;
   if (!token || typeof token !== "string") {
     return NextResponse.json({ error: "join_token requis" }, { status: 400 });
   }
+  const studentCode = typeof code === "string" ? code : "";
 
   const si = await getStudentIdentityByToken(token);
   if (!si) return NextResponse.json({ error: "join_token invalide" }, { status: 404 });
@@ -64,6 +67,26 @@ export async function POST(req: NextRequest) {
   const levelOf = (idx: number) => revealed.find((r) => r.pair === idx)?.level ?? 0;
   const maxLevelOf = (idx: number) => (pairs[idx].codeLine ? 5 : 1);
 
+  // Smart skip : les paires dont la ligne cible est déjà dans le code élève
+  // sont marquées terminées d'office (pas de réécriture demandée).
+  const skippedPairs: number[] = [];
+  if (studentCode.trim()) {
+    for (let idx = 0; idx < pairs.length; idx++) {
+      const target = pairs[idx].codeLine;
+      if (!target) continue;
+      if (levelOf(idx) >= maxLevelOf(idx)) continue;
+      if (codeLineExistsInStudentCode(target, studentCode)) {
+        const entry = revealed.find((r) => r.pair === idx);
+        if (entry) entry.level = maxLevelOf(idx);
+        else revealed.push({ pair: idx, level: maxLevelOf(idx) });
+        skippedPairs.push(idx);
+      }
+    }
+    if (skippedPairs.length > 0) {
+      await updateSession(sess.id, { revealedHints: revealed });
+    }
+  }
+
   const current = pairs.findIndex((_, idx) => levelOf(idx) < maxLevelOf(idx));
   if (current === -1) {
     return NextResponse.json({
@@ -87,6 +110,7 @@ export async function POST(req: NextRequest) {
         totalPairs: pairs.length,
         revealedCount: revealed.length,
         capped: true,
+        skippedPairs,
         text: getHintText(pairs[current], 3),
         note: "Exécute ton code (Run) pour débloquer les niveaux 4-5.",
       });
@@ -105,6 +129,7 @@ export async function POST(req: NextRequest) {
     totalPairs: pairs.length,
     revealedCount: revealed.length,
     capped: false,
+    skippedPairs,
     text: getHintText(pairs[current], nextLevel),
   });
 }

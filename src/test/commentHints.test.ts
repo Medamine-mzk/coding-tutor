@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseCommentedReference, getHintText, getCommentBlock } from "@/lib/tutor/commentHints";
+import { parseCommentedReference, getHintText, getCommentBlock, codeLineExistsInStudentCode } from "@/lib/tutor/commentHints";
 
 const COMMENTED = `# Stocke une valeur lue au clavier, convertie en entier dans n
 n = int(input())
@@ -89,5 +89,26 @@ describe("parseCommentedReference", () => {
     const pairs = parseCommentedReference(COMMENTED);
     expect(getHintText(pairs[0], 0)).toBe(getHintText(pairs[0], 1));
     expect(getHintText(pairs[0], 99)).toBe(getHintText(pairs[0], 5));
+  });
+});
+
+describe("codeLineExistsInStudentCode (smart skip)", () => {
+  it("matches exact lines ignoring whitespace and case", () => {
+    expect(codeLineExistsInStudentCode("from numpy import array", "from numpy import array\nn = 1")).toBe(true);
+    expect(codeLineExistsInStudentCode("n = int(input())", "  N  =  INT(INPUT())  ")).toBe(true);
+    expect(codeLineExistsInStudentCode("print(s)", "print(x)")).toBe(false);
+  });
+
+  it("matches import equivalences (same module, other form)", () => {
+    expect(codeLineExistsInStudentCode("from numpy import array", "import numpy\nn = 1")).toBe(true);
+    expect(codeLineExistsInStudentCode("from numpy import array", "import numpy as np")).toBe(true);
+    expect(codeLineExistsInStudentCode("import numpy", "from numpy import *")).toBe(true);
+    expect(codeLineExistsInStudentCode("from numpy import array", "import math")).toBe(false);
+  });
+
+  it("never matches empty lines or comments", () => {
+    expect(codeLineExistsInStudentCode("", "x = 1")).toBe(false);
+    expect(codeLineExistsInStudentCode("# comment", "# comment\nx = 1")).toBe(false);
+    expect(codeLineExistsInStudentCode("x = 1", "")).toBe(false);
   });
 });

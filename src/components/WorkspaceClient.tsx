@@ -271,16 +271,27 @@ export function WorkspaceClient() {
       const res = await fetch("/api/student/hints", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ join_token: joinToken, hasRun: hasRunRef.current }),
+        body: JSON.stringify({ join_token: joinToken, hasRun: hasRunRef.current, code }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Erreur indices");
       hasRunRef.current = false;
       setHintsTotal(data.totalPairs ?? null);
       setHintsRevealed(data.revealedCount ?? 0);
+      // Smart skip : des paires déjà présentes dans le code ont été sautées
+      // d'office — on le signale sans insérer de commentaire dupliqué.
+      const skipped = Array.isArray(data.skippedPairs) ? (data.skippedPairs as number[]) : [];
       if (data.done) {
         setHintsDone(true);
+        if (skipped.length > 0) setHintsNote("✅ Lignes déjà présentes dans ton code — passées automatiquement.");
         return;
+      }
+      if (skipped.length > 0) {
+        setHintsNote(
+          skipped.length === 1
+            ? "✅ Cette ligne est déjà dans ton code — voici l'indice suivant :"
+            : `✅ ${skipped.length} lignes déjà dans ton code — voici l'indice suivant :`
+        );
       }
       const item = { pairIndex: data.pairIndex as number, level: data.level as number, text: data.text as string };
       setHints((prev) => {

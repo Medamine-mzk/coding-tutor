@@ -291,3 +291,37 @@ export function getHintText(hint: CommentHint, level: number): string {
 export function getCommentBlock(hint: CommentHint): string {
   return hint.comments.map((c) => `# ${c}`).join("\n");
 }
+
+/** Normalise une ligne de code pour comparaison (espaces, casse). */
+function normalizeCodeLine(line: string): string {
+  return line.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+/**
+ * Smart skip : la ligne cible de l'indice est-elle déjà dans le code élève ?
+ * - Match exact normalisé (espaces/casse ignorés).
+ * - Équivalences d'import : `import numpy`, `import numpy as np`,
+ *   `from numpy import ...` sont interchangeables (même module).
+ * - Lignes vides ou purement commentaires : jamais "présentes".
+ */
+export function codeLineExistsInStudentCode(hintCodeLine: string, studentCode: string): boolean {
+  const target = normalizeCodeLine(hintCodeLine);
+  if (!target || target.startsWith("#")) return false;
+  const studentLines = studentCode.split("\n").map(normalizeCodeLine);
+
+  if (studentLines.includes(target)) return true;
+
+  // Équivalences d'import : même module importé sous une autre forme.
+  const importModule = (line: string): string | null => {
+    let m = line.match(/^import\s+([\w.]+)/);
+    if (m) return m[1].split(".")[0];
+    m = line.match(/^from\s+([\w.]+)\s+import\s+/);
+    if (m) return m[1].split(".")[0];
+    return null;
+  };
+  const targetModule = importModule(target);
+  if (targetModule) {
+    return studentLines.some((l) => importModule(l) === targetModule);
+  }
+  return false;
+}

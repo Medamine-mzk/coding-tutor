@@ -95,4 +95,51 @@ describe("student hints API — comment-based progression", () => {
     const res = await hintsPOST(makeReq({ join_token: "nope" }));
     expect(res.status).toBe(404);
   });
+
+  it("smart skip: lines already in student code are auto-marked done", async () => {
+    const ex = await createTeacherExercise({
+      teacher_id: "t_test",
+      title: "Somme tableau",
+      statement: "Lire n puis n entiers, afficher la somme.",
+      concepts: ["arrays"],
+      difficulty: 2,
+      examples: [{ input: "2\n1\n2", output: "3" }],
+      visibility: "code_only",
+      created_via: "manual",
+      reference_solution: "from numpy import array\nn = int(input())\nprint(n)",
+    });
+    const joined = (await (await joinPOST(makeReq({ code: ex.code, display_name: "Yasmine" }))).json()) as { join_token: string; session: { id: string } };
+
+    // L'élève a déjà écrit l'import → la paire 0 est skippée, on reçoit la paire 1
+    const hRes = await hintsPOST(makeReq({ join_token: joined.join_token, code: "from numpy import array\n" }));
+    expect(hRes.status).toBe(200);
+    const h = (await hRes.json()) as { pairIndex: number; level: number; skippedPairs: number[]; text: string };
+    expect(h.skippedPairs).toContain(0);
+    expect(h.pairIndex).toBe(1);
+    expect(h.level).toBe(1);
+
+    // Session : paire 0 marquée terminée + paire 1 révélée niveau 1
+    const sess = await getSession(joined.session.id);
+    const p0 = sess?.revealedHints?.find((r) => r.pair === 0);
+    expect(p0?.level).toBe(5);
+  });
+
+  it("no skip when student code is empty or unrelated", async () => {
+    const ex = await createTeacherExercise({
+      teacher_id: "t_test",
+      title: "Somme",
+      statement: "Lire deux entiers et afficher leur somme.",
+      concepts: ["loops"],
+      difficulty: 2,
+      examples: [{ input: "2\n3", output: "5" }],
+      visibility: "code_only",
+      created_via: "manual",
+      reference_solution: "a = int(input())\nb = int(input())\nprint(a + b)",
+    });
+    const joined = (await (await joinPOST(makeReq({ code: ex.code, display_name: "Yasmine" }))).json()) as { join_token: string };
+    const h = (await (await hintsPOST(makeReq({ join_token: joined.join_token, code: "# juste un commentaire\nx = 1" }))).json()) as { pairIndex: number; level: number; skippedPairs: number[] };
+    expect(h.pairIndex).toBe(0);
+    expect(h.level).toBe(1);
+    expect(h.skippedPairs).toEqual([]);
+  });
 });
