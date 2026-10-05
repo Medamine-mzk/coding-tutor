@@ -3,10 +3,12 @@
  *
  * Chaque paire (commentaire, code) devient un indice progressif à 5 niveaux :
  *   1 — commentaire FR uniquement
- *   2 — + cible (LHS de =, variable de for)
+ *   2 — cible seule (LHS de =, variable de for)
  *   3 — + opérateur / fonction
  *   4 — + arguments partiels
  *   5 — ligne complète
+ * Le commentaire n'est montré qu'au niveau 1 (l'historique le conserve) ;
+ * les niveaux 2-5 ne contiennent que le code progressivement révélé.
  *
  * Le masquage utilise ▮ pour les parties cachées. Chaque ligne est traitée
  * séparément (pas de regroupement de blocs).
@@ -256,7 +258,7 @@ export function parseCommentedReference(commented: string): CommentHint[] {
     for (let lvl = 1; lvl <= 5; lvl++) {
       const code = reveal(parsed, lvl);
       const commentBlock = pendingComments.map((c) => `# ${c}`).join("\n");
-      levels[lvl - 1] = lvl === 1 ? commentBlock : `${commentBlock}\n${code}`;
+      levels[lvl - 1] = lvl === 1 ? commentBlock : code;
     }
     hints.push({ comments: pendingComments, codeLine: trimmed, levels });
     pendingComments = [];

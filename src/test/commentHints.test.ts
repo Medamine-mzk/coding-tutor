@@ -28,11 +28,21 @@ describe("parseCommentedReference", () => {
     expect(getHintText(pairs[0], 1)).toBe("# Stocke une valeur lue au clavier, convertie en entier dans n");
   });
 
-  it("level 5 shows comment + full line", () => {
+  it("level 5 shows full line without repeating the comment", () => {
     const pairs = parseCommentedReference(COMMENTED);
     const l5 = getHintText(pairs[0], 5);
-    expect(l5).toContain("# Stocke une valeur lue au clavier, convertie en entier dans n");
-    expect(l5).toContain("n = int(input())");
+    expect(l5).toBe("n = int(input())");
+    expect(l5).not.toContain("#");
+  });
+
+  it("comment is shown only at level 1 (history keeps it)", () => {
+    const pairs = parseCommentedReference(COMMENTED);
+    for (const p of pairs) {
+      if (p.comments.length === 0) continue;
+      for (let lvl = 2; lvl <= 5; lvl++) {
+        expect(getHintText(p, lvl)).not.toContain("#");
+      }
+    }
   });
 
   it("assignment reveals target, then function, then args", () => {
@@ -54,11 +64,11 @@ describe("parseCommentedReference", () => {
     expect(l3).toContain("range(");
   });
 
-  it("levels are monotonic (never reveal less)", () => {
+  it("levels 2-5 are monotonic (never reveal less code)", () => {
     const pairs = parseCommentedReference(COMMENTED);
     for (const p of pairs) {
       const stripped = (s: string) => s.replace(/▮/g, "");
-      for (let lvl = 1; lvl < 5; lvl++) {
+      for (let lvl = 2; lvl < 5; lvl++) {
         expect(stripped(getHintText(p, lvl + 1)).length).toBeGreaterThanOrEqual(stripped(getHintText(p, lvl)).length);
       }
     }

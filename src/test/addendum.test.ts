@@ -130,12 +130,13 @@ describe("Comment-based hints — no steps, no progressive disclosure", () => {
     const first = pairs[0];
     expect(getHintText(first, 1)).toContain("#");
     expect(getHintText(first, 1)).not.toContain("int(input())");
-    // Level 5 = full line
+    // Level 5 = full line, comment NOT repeated (shown once at level 1)
     expect(getHintText(first, 5)).toContain(first.codeLine);
-    // Levels are progressive (revealed content never shrinks — ▮ excluded)
+    expect(getHintText(first, 5)).not.toContain("#");
+    // Levels 2-5 are progressive (revealed code never shrinks — ▮ excluded)
     const stripped = (s: string) => s.replace(/▮/g, "");
     for (const p of pairs) {
-      for (let lvl = 1; lvl < 5; lvl++) {
+      for (let lvl = 2; lvl < 5; lvl++) {
         expect(stripped(getHintText(p, lvl + 1)).length).toBeGreaterThanOrEqual(stripped(getHintText(p, lvl)).length);
       }
     }

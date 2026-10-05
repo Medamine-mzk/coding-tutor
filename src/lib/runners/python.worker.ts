@@ -101,7 +101,17 @@ async function getPyodide(): Promise<unknown> {
     }
     const loadPyodide = (self as unknown as { loadPyodide: (opts: unknown) => Promise<unknown> }).loadPyodide;
     if (!loadPyodide) throw new Error("loadPyodide not found after importScripts");
-    const instance = await loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.26.2/full/" });
+    const instance = (await loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.26.2/full/" })) as unknown as {
+      loadPackage: (pkgs: string | string[]) => Promise<void>;
+    };
+    // numpy est au programme du BAC (tableaux) : on le précharge pour que
+    // `from numpy import array` fonctionne dans le navigateur. Échec silencieux
+    // hors-ligne (le run signalera ModuleNotFoundError comme avant).
+    try {
+      await instance.loadPackage("numpy");
+    } catch (e) {
+      console.warn("[pyodide] numpy preload failed (offline?)", e instanceof Error ? e.message : String(e));
+    }
     pyodide = instance;
     return instance;
   })();
