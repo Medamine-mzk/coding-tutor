@@ -23,18 +23,20 @@ describe("LibraryClient", () => {
     expect(screen.getByTestId("library-grid").children.length).toBe(20);
   });
 
-  it("filters by locale", () => {
+  it("filters by locale (library is 100% French)", () => {
     render(
       <I18nProvider>
         <LibraryClient />
       </I18nProvider>
     );
     const sel = screen.getByTestId("filter-locale") as HTMLSelectElement;
-    fireEvent.change(sel, { target: { value: "ar" } });
+    fireEvent.change(sel, { target: { value: "fr" } });
     const countText = screen.getByTestId("library-count").textContent ?? "";
     const num = parseInt(countText.split("/")[0].trim(), 10);
-    expect(num).toBeGreaterThanOrEqual(3);
-    expect(num).toBeLessThan(20);
+    expect(num).toBe(20);
+    fireEvent.change(sel, { target: { value: "ar" } });
+    const countTextAr = screen.getByTestId("library-count").textContent ?? "";
+    expect(countTextAr).toMatch(/^0 \//);
   });
 
   it("filters by difficulty", () => {

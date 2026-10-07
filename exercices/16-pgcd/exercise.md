@@ -1,5 +1,5 @@
 ---
-title: PGCD
+title: PGCD de deux nombres
 language: python
 concepts: [loops, math]
 difficulty: 3

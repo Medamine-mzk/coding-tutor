@@ -1,5 +1,5 @@
 ---
-title: Tri a bulles
+title: Tri à bulles
 language: python
 concepts: [arrays, loops, conditionals]
 difficulty: 3

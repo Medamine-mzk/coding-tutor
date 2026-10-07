@@ -6,17 +6,17 @@ describe("library data", () => {
     expect(LIBRARY_EXERCISES.length).toBe(20);
   });
 
-  it("has fr/ar/en coverage", () => {
+  it("is 100% French (BAC Tunisie) — no ar/en exercises", () => {
     const stats = libraryStats();
-    expect(stats.byLocale.fr).toBeGreaterThanOrEqual(6);
-    expect(stats.byLocale.ar).toBeGreaterThanOrEqual(3);
-    expect(stats.byLocale.en).toBeGreaterThanOrEqual(3);
+    expect(stats.byLocale.fr).toBe(20);
+    expect(stats.byLocale.ar).toBe(0);
+    expect(stats.byLocale.en).toBe(0);
     expect(stats.total).toBe(20);
   });
 
-  it("covers concepts loops, conditionals, lists, functions, recursion, strings, dictionaries, math", () => {
+  it("covers concepts loops, conditionals, arrays, functions, recursion, strings, dictionaries, math", () => {
     const allConcepts = LIBRARY_EXERCISES.flatMap((e) => e.concepts);
-    for (const c of ["loops", "conditionals", "lists", "functions", "recursion"] as const) {
+    for (const c of ["loops", "conditionals", "arrays", "functions", "recursion"] as const) {
       expect(allConcepts).toContain(c);
     }
   });
