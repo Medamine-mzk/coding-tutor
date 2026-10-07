@@ -292,9 +292,17 @@ export function getCommentBlock(hint: CommentHint): string {
   return hint.comments.map((c) => `# ${c}`).join("\n");
 }
 
-/** Normalise une ligne de code pour comparaison (espaces, casse). */
+/**
+ * Normalise une ligne de code pour comparaison : TOUS les espaces supprimés
+ * hors chaînes littérales (Python ignore les espaces : `b = int (x)` =
+ * `b=int(x)`). Les espaces DANS les strings sont préservés (`"a b"` ≠ `"ab"`),
+ * la casse du code est ignorée mais pas celle des strings.
+ */
 function normalizeCodeLine(line: string): string {
-  return line.trim().replace(/\s+/g, " ").toLowerCase();
+  return line
+    .split(/('[^']*'|"[^"]*")/g)
+    .map((part, i) => (i % 2 === 1 ? part : part.replace(/\s+/g, "").toLowerCase()))
+    .join("");
 }
 
 /**
@@ -312,10 +320,12 @@ export function codeLineExistsInStudentCode(hintCodeLine: string, studentCode: s
   if (studentLines.includes(target)) return true;
 
   // Équivalences d'import : même module importé sous une autre forme.
+  // Les lignes sont déjà normalisées (sans espaces) : `importnumpy`,
+  // `fromnumpyimportarray`. Le `as alias` est ignoré (lazy + ancre fin).
   const importModule = (line: string): string | null => {
-    let m = line.match(/^import\s+([\w.]+)/);
+    let m = line.match(/^import([\w.]+?)(?:as\w+)?$/);
     if (m) return m[1].split(".")[0];
-    m = line.match(/^from\s+([\w.]+)\s+import\s+/);
+    m = line.match(/^from([\w.]+?)import/);
     if (m) return m[1].split(".")[0];
     return null;
   };

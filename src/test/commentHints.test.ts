@@ -99,6 +99,32 @@ describe("codeLineExistsInStudentCode (smart skip)", () => {
     expect(codeLineExistsInStudentCode("print(s)", "print(x)")).toBe(false);
   });
 
+  it("ignores ALL spaces: b = int(input()) = b=int(input()) = b = int (input())", () => {
+    const variants = [
+      "b = int(input())",
+      "b=int(input())",
+      "b = int (input())",
+      "b  =  int(  input(  )  )",
+      "\tb=int(input())\n",
+      "B = INT(INPUT())",
+    ];
+    for (const a of variants) {
+      for (const b of variants) {
+        expect(codeLineExistsInStudentCode(a, b)).toBe(true);
+      }
+    }
+    // Mais des lignes vraiment différentes ne matchent pas
+    expect(codeLineExistsInStudentCode("b = int(input())", "b = float(input())")).toBe(false);
+    expect(codeLineExistsInStudentCode("for i in range(n):", "for i in range ( n ) :")).toBe(true);
+    expect(codeLineExistsInStudentCode("s = s + T[i]", "s=s+T[i]")).toBe(true);
+  });
+
+  it("preserves spaces inside string literals (no false positive)", () => {
+    expect(codeLineExistsInStudentCode('print("a b")', 'print("ab")')).toBe(false);
+    expect(codeLineExistsInStudentCode('print("hello")', 'print("hello")')).toBe(true);
+    expect(codeLineExistsInStudentCode("print( 'x' )", "print('x')")).toBe(true);
+  });
+
   it("matches import equivalences (same module, other form)", () => {
     expect(codeLineExistsInStudentCode("from numpy import array", "import numpy\nn = 1")).toBe(true);
     expect(codeLineExistsInStudentCode("from numpy import array", "import numpy as np")).toBe(true);
